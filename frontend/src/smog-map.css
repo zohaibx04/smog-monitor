@@ -282,12 +282,57 @@
   .smog-map-canvas {
     flex: none;
     height: clamp(320px, 55vh, 520px);
+    height: clamp(320px, 55dvh, 520px);
   }
 }
 
 @media (max-width: 640px) {
+  .smog-map-toolbar {
+    padding: 12px;
+    gap: 10px;
+  }
+
   .smog-map-toolbar .field {
     flex-basis: 100%;
     max-width: none;
+  }
+
+  .smog-map-actions {
+    width: 100%;
+    margin-left: 0;
+    gap: 8px;
+  }
+
+  .smog-map-actions .btn {
+    flex: 1 1 auto;
+    padding: 6px 10px;
+    font-size: 12px;
+    justify-content: center;
+  }
+
+  .smog-map-canvas {
+    height: clamp(300px, 52vh, 460px);
+    height: clamp(300px, 52dvh, 460px);
+  }
+
+  .smog-map-key {
+    padding: 12px;
+    gap: 6px 12px;
+  }
+
+  .smog-map-key ul {
+    gap: 6px 12px;
+  }
+
+  .smog-map-key li {
+    white-space: normal;
+  }
+
+  .smog-map-popup dl {
+    gap: 6px;
+  }
+
+  .smog-map-popup .btn {
+    width: 100%;
   }
 }

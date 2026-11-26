@@ -553,7 +553,7 @@ export default function DashboardApp() {
   return <div className={`app-shell${menu ? ' sidebar-open' : ''}`}>
     <aside id="app-sidebar" className={`sidebar${menu ? ' open' : ''}${firebaseMode && isAdmin ? ' is-admin' : ''}`} inert={!menu}>
       <div className="brand">
-        <div className="brand-mark"><img src="/app-icon.png?v=2" alt="Smog Monitor" className="brand-icon-img" /></div>
+        <div className="brand-mark"><img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" /></div>
         <div>
           <strong>Smog Monitor</strong>
           <span>Air quality &amp; alerts</span>

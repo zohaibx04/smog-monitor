@@ -1,0 +1,293 @@
+.smog-map-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  margin-bottom: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: none;
+  font-family: var(--font-sans);
+}
+
+.smog-map-toolbar {
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  background: var(--bg-card);
+}
+
+.smog-map-toolbar .field {
+  flex: 1 1 240px;
+  max-width: 320px;
+  margin: 0;
+}
+
+.smog-map-toolbar .field > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.smog-map-toolbar .custom-select {
+  width: 100%;
+}
+
+.smog-map-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.smog-map-actions .btn {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.smog-map-actions .btn:hover:not(:disabled) {
+  background: var(--bg-card);
+}
+
+.smog-map-notice {
+  flex-shrink: 0;
+  padding: 0 16px 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.smog-map-canvas {
+  isolation: isolate;
+  z-index: 0;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  background: var(--bg-raised);
+  border-block: 1px solid var(--border);
+}
+
+.smog-map-tone-good { --map-tone: var(--aqi-good); --map-ink: var(--aqi-good-ink); }
+.smog-map-tone-moderate { --map-tone: var(--aqi-moderate); --map-ink: var(--aqi-moderate-ink); }
+.smog-map-tone-sensitive { --map-tone: var(--aqi-sensitive); --map-ink: var(--aqi-sensitive-ink); }
+.smog-map-tone-unhealthy { --map-tone: var(--aqi-unhealthy); --map-ink: var(--aqi-unhealthy-ink); }
+.smog-map-tone-very-unhealthy { --map-tone: var(--aqi-very-unhealthy); --map-ink: var(--aqi-very-unhealthy-ink); }
+.smog-map-tone-hazardous { --map-tone: var(--aqi-hazardous); --map-ink: var(--aqi-hazardous-ink); }
+.smog-map-tone-unknown { --map-tone: var(--aqi-unknown); --map-ink: var(--aqi-unknown-ink); }
+
+.smog-map-marker, .smog-map-dot {
+  background: var(--map-tone);
+}
+
+.smog-map-marker {
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--bg-card);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  color: var(--map-ink);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.smog-map-marker:hover,
+.smog-map-marker:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.smog-map-popup {
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.smog-map-popup h3 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.smog-map-popup dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.smog-map-popup dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.smog-map-popup dd {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.smog-map-popup p {
+  margin: 4px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.smog-map-popup .btn {
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.smog-map-popup .btn:hover {
+  background: var(--btn-primary-hover, var(--btn-primary-bg));
+}
+
+.smog-map-key {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  background: var(--bg-card);
+}
+
+.smog-map-key h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.smog-map-key ul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.smog-map-key li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.smog-map-key small {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.smog-map-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.smog-map-canvas .leaflet-control-zoom a {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.smog-map-canvas .leaflet-control-zoom a:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.smog-map-canvas .leaflet-control-attribution {
+  background: var(--bg-card);
+  opacity: 0.9;
+  color: var(--text-muted);
+}
+
+.smog-map-canvas .leaflet-control-attribution a {
+  color: var(--text-secondary);
+}
+
+.smog-map-canvas .leaflet-popup-content-wrapper {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+.smog-map-canvas .leaflet-popup-tip {
+  background: var(--bg-card);
+}
+
+.smog-map-canvas .leaflet-popup-close-button {
+  color: var(--text-secondary);
+}
+
+.smog-map-canvas .leaflet-popup-close-button:hover {
+  color: var(--text-primary);
+}
+
+@media (max-width: 900px) {
+  .smog-map-card {
+    flex: none;
+  }
+
+  .smog-map-canvas {
+    flex: none;
+    height: clamp(320px, 55vh, 520px);
+  }
+}
+
+@media (max-width: 640px) {
+  .smog-map-toolbar .field {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}

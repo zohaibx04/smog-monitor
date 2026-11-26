@@ -1,0 +1,13 @@
+**/node_modules/
+**/dist/
+**/target/
+**/data/
+**/.npm-cache/
+.m2-repository/
+.tools/
+.run/
+**/.env
+**/.env.*
+!**/.env.example
+**/*firebase-adminsdk*.json
+**/*.log

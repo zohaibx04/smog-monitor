@@ -1,0 +1,570 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // This security rules file assumes the following Cloud Firestore data structures
+    // for the Smog Monitor multi-user Client + Admin platform:
+    //
+    // 1. Collection: globalCities
+    //    Document ID: {cityId} (string slug/identifier, e.g. "lahore", "karachi")
+    //    Read: Public (guests and signed-in users)
+    //    Write: Admin only (request.auth.token.role == 'admin') or Admin SDK
+    //    Fields:
+    //      - name: string (required, 1..120 chars)
+    //      - latitude: number (required, -90..90)
+    //      - longitude: number (required, -180..180)
+    //      - cityId: string (optional, 1..100 chars, matches {cityId} if present)
+    //      - country: string | null (optional, <= 100 chars)
+    //      - countryCode: string | null (optional, <= 10 chars)
+    //      - region: string | null (optional, <= 100 chars)
+    //      - active: bool (optional)
+    //      - archived: bool (optional)
+    //      - isStarter / starter: bool (optional)
+    //      - customLocation: bool (optional)
+    //      - aqi / latestAqi: number | null (optional, 0..1000)
+    //      - pm25 / latestPm25: number | null (optional, 0..10000)
+    //      - pm10 / latestPm10: number | null (optional, 0..10000)
+    //      - latestReading: map | null (optional, <= 15 keys)
+    //      - source / latestSource: string | null (optional, <= 80 chars)
+    //      - providerLocation: string | null (optional, <= 300 chars)
+    //      - lastError: string | null (optional, <= 500 chars)
+    //      - stale: bool (optional)
+    //      - createdAt: timestamp | string (optional, immutable if set)
+    //      - updatedAt / lastReadingAt / latestReadingAt: timestamp | string | null (optional)
+    //
+    // 2. Subcollection: globalCities/{cityId}/readings
+    //    Document ID: {readingId}
+    //    Read: Public (guests and signed-in users)
+    //    Write: Admin only or Admin SDK (server ingestion)
+    //    Fields:
+    //      - timestamp / recordedAt: timestamp | ISO string (required, <= 64 chars if string)
+    //      - cityId: string (optional, matches parent {cityId})
+    //      - aqi: number | null (optional, 0..1000)
+    //      - pm25: number | null (optional, 0..10000)
+    //      - pm10: number | null (optional, 0..10000)
+    //      - source: string (optional, 1..80 chars)
+    //      - providerLocation: string | null (optional, <= 300 chars)
+    //      - isSimulated: bool (optional)
+    //      - createdAt: timestamp (optional, immutable if set)
+    //
+    // 3. Collection: systemAdvisories
+    //    Document ID: {advisoryId}
+    //    Read: Public
+    //    Write: Admin only
+    //    Fields:
+    //      - title: string (optional if message/body present, 1..160 chars)
+    //      - message / body / description: string (optional if title present, 1..2000 chars)
+    //      - severity / level: string (optional, 1..40 chars)
+    //      - active / enabled: bool (optional)
+    //      - cityId: string | null (optional, <= 100 chars)
+    //      - cityName: string | null (optional, <= 80 chars)
+    //      - createdAt: timestamp | string (optional, immutable if set)
+    //      - updatedAt / startsAt / expiresAt / publishedAt: timestamp | string | null (optional)
+    //      - createdBy / updatedBy / authorUid: string (optional, <= 128 chars)
+    //
+    // 4. Collection: systemRules
+    //    Document ID: {ruleId}
+    //    Read: Public
+    //    Write: Admin only
+    //    Fields:
+    //      - cityId: string (required, 1..100 chars)
+    //      - cityName: string (optional, <= 80 chars)
+    //      - aqiThreshold: number (required, 1..500)
+    //      - enabled: bool (required)
+    //      - aboveThreshold: bool (optional)
+    //      - emailNotify: bool (optional)
+    //      - message: string (optional, <= 500 chars)
+    //      - severity: string (optional, <= 40 chars)
+    //      - createdAt: timestamp (optional, immutable if set)
+    //      - updatedAt: timestamp (optional)
+    //
+    // 5. Collection: users
+    //    Document ID: {uid} (Firebase Auth UID)
+    //    Read: Owning authenticated user or Admin
+    //    Create / Delete: Forbidden from client (managed via /api/auth/bootstrap & Admin APIs)
+    //    Update: Owning active user ONLY for safe preference fields:
+    //      - defaultCityId: string | null (<= 100 chars)
+    //      - theme: 'dark' | 'light'
+    //      - emailAlertsEnabled: bool
+    //      - lastSeenAt: timestamp (<= request.time + 5m)
+    //    Immutable / server-managed fields:
+    //      - role, disabled, email, watchlistCount, createdAt, uid
+    //
+    // 6. Subcollection: users/{uid}/watchlist
+    //    Document ID: {cityId}
+    //    Read: Owning user or Admin
+    //    Create / Update / Delete: Owning active user (not disabled)
+    //    Strict Fields (hasOnly):
+    //      - cityId: string (required, == {cityId}, 1..100 chars, immutable)
+    //      - name: string (required, 1..80 chars)
+    //      - latitude: number (required, -90..90)
+    //      - longitude: number (required, -180..180)
+    //      - addedAt: timestamp (required, recent on create, immutable on update)
+    //
+    // 7. Subcollection: users/{uid}/alertRules
+    //    Document ID: {ruleId}
+    //    Read: Owning user or Admin
+    //    Create / Update / Delete: Owning active user
+    //    Client-writable Fields:
+    //      - cityId: string (required, 1..100 chars)
+    //      - cityName: string (required, 1..80 chars)
+    //      - aqiThreshold: number (required, 1..500)
+    //      - enabled: bool (required)
+    //      - emailNotify: bool (required)
+    //      - aboveThreshold: bool (optional; false only on create, false or unchanged on update)
+    //      - createdAt: timestamp (optional, immutable if set)
+    //      - updatedAt: timestamp (optional)
+    //    Server-only Evaluation Fields (preserved if set by Admin SDK, unforgeable by client):
+    //      - lastEvaluatedAt, lastEvaluatedSource, lastTriggeredAt, activeAlertId, lastAqi
+    //
+    // 8. Subcollection: users/{uid}/alerts
+    //    Document ID: {alertId}
+    //    Read: Owning user or Admin
+    //    Create / Delete: Forbidden from client (server alert evaluator only)
+    //    Update: Owning active user ONLY to transition status 'Active' -> 'Acknowledged'
+    //      - affectedKeys().hasOnly(['status'])
+    //
+    // 9. Collection: emailLogs
+    //    Document ID: {logId}
+    //    Read: Admin only
+    //    Write: Forbidden from client (Admin SDK only)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the request is from an authenticated user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the authenticated user has the verified admin custom claim
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    // Check if the authenticated user owns the path identified by uid
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Check if the authenticated user owns the document via its uid field
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    // Verify uid field matches caller on create when present
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) ||
+             request.resource.data.uid == request.auth.uid;
+    }
+
+    // Ensure uid field is not modified on update when present
+    function uidNotModified() {
+      return !('uid' in request.resource.data) ||
+             request.resource.data.uid == resource.data.uid;
+    }
+
+    // Load the user's profile document
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    // Verify a user profile document is not marked disabled
+    function isNotDisabledUserDoc(userData) {
+      return !('disabled' in userData) || userData.disabled == false;
+    }
+
+    // Verify the caller's user document exists and is not disabled
+    function isActiveUser() {
+      return isAuthenticated() &&
+             (!('disabled' in request.auth.token) || request.auth.token.disabled == false) &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             isNotDisabledUserDoc(getUserData(request.auth.uid));
+    }
+
+    // Validate required fields exist
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate that the document contains only allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that restricted fields were not modified on update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate string length on a field of request.resource.data
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    // Validate optional string field within bounds
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    // Validate ISO 8601 date string format with length limit
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+             dateStr.size() <= 64 &&
+             dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // Validate a timestamp or ISO 8601 date string
+    function isValidTimestampOrDateString(val) {
+      return val is timestamp || isValidDateString(val);
+    }
+
+    // Validate timestamp is recent (within +/- 5 minutes of server request time)
+    function isRecentOrValidClockSkew(time) {
+      return time is timestamp &&
+             time > request.time - duration.value(5, 'm') &&
+             time <= request.time + duration.value(5, 'm');
+    }
+
+    // Validate latitude and longitude bounds
+    function isValidLatLng(lat, lng) {
+      return lat is number && lat >= -90 && lat <= 90 &&
+             lng is number && lng >= -180 && lng <= 180;
+    }
+
+    // Validate list size
+    function isValidList(list, maxSize) {
+      return list is list && list.size() <= maxSize;
+    }
+
+    // Validate optional nullable string within bounds
+    function isValidOptionalNullableString(data, field, maxLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    // Validate optional nullable number within bounds
+    function isValidOptionalNullableNumber(data, field, minVal, maxVal) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is number && data[field] >= minVal && data[field] <= maxVal);
+    }
+
+    // Validate optional boolean field
+    function isValidOptionalBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    // Validate optional nullable timestamp or date string
+    function isValidOptionalNullableDate(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             isValidTimestampOrDateString(data[field]);
+    }
+
+    // ===============================================================
+    // Domain Validators (Used in BOTH create and update)
+    // ===============================================================
+
+    function isValidGlobalCity(data, cityId) {
+      return data.keys().size() <= 30 &&
+             hasRequiredFields(['name', 'latitude', 'longitude']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+             isValidLatLng(data.latitude, data.longitude) &&
+             (!('cityId' in data) || (data.cityId is string && data.cityId.size() > 0 && data.cityId.size() <= 100 && data.cityId == cityId)) &&
+             isValidOptionalNullableString(data, 'country', 100) &&
+             isValidOptionalNullableString(data, 'countryCode', 10) &&
+             isValidOptionalNullableString(data, 'region', 100) &&
+             isValidOptionalBool(data, 'active') &&
+             isValidOptionalBool(data, 'archived') &&
+             isValidOptionalBool(data, 'isStarter') &&
+             isValidOptionalBool(data, 'starter') &&
+             isValidOptionalBool(data, 'customLocation') &&
+             isValidOptionalBool(data, 'stale') &&
+             isValidOptionalNullableNumber(data, 'aqi', 0, 1000) &&
+             isValidOptionalNullableNumber(data, 'latestAqi', 0, 1000) &&
+             isValidOptionalNullableNumber(data, 'pm25', 0, 10000) &&
+             isValidOptionalNullableNumber(data, 'latestPm25', 0, 10000) &&
+             isValidOptionalNullableNumber(data, 'pm10', 0, 10000) &&
+             isValidOptionalNullableNumber(data, 'latestPm10', 0, 10000) &&
+             isValidOptionalNullableString(data, 'source', 80) &&
+             isValidOptionalNullableString(data, 'latestSource', 80) &&
+             isValidOptionalNullableString(data, 'providerLocation', 300) &&
+             isValidOptionalNullableString(data, 'lastError', 500) &&
+             (!('latestReading' in data) || data.latestReading == null ||
+              (data.latestReading is map &&
+               data.latestReading.keys().size() <= 15 &&
+               isValidOptionalNullableNumber(data.latestReading, 'aqi', 0, 1000) &&
+               isValidOptionalNullableNumber(data.latestReading, 'pm25', 0, 10000) &&
+               isValidOptionalNullableNumber(data.latestReading, 'pm10', 0, 10000) &&
+               isValidOptionalNullableString(data.latestReading, 'source', 80) &&
+               isValidOptionalNullableDate(data.latestReading, 'timestamp'))) &&
+             isValidOptionalNullableDate(data, 'createdAt') &&
+             isValidOptionalNullableDate(data, 'updatedAt') &&
+             isValidOptionalNullableDate(data, 'lastReadingAt') &&
+             isValidOptionalNullableDate(data, 'latestReadingAt');
+    }
+
+    function isValidReading(data, cityId) {
+      return data.keys().size() <= 20 &&
+             (('timestamp' in data && data.timestamp != null) ||
+              ('recordedAt' in data && data.recordedAt != null)) &&
+             isValidOptionalNullableDate(data, 'timestamp') &&
+             isValidOptionalNullableDate(data, 'recordedAt') &&
+             (!('cityId' in data) || (data.cityId is string && data.cityId.size() > 0 && data.cityId.size() <= 100 && data.cityId == cityId)) &&
+             isValidOptionalNullableNumber(data, 'aqi', 0, 1000) &&
+             isValidOptionalNullableNumber(data, 'pm25', 0, 10000) &&
+             isValidOptionalNullableNumber(data, 'pm10', 0, 10000) &&
+             (!('source' in data) || (data.source is string && data.source.size() > 0 && data.source.size() <= 80)) &&
+             isValidOptionalNullableString(data, 'providerLocation', 300) &&
+             isValidOptionalBool(data, 'isSimulated') &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidSystemAdvisory(data) {
+      return data.keys().size() >= 1 &&
+             data.keys().size() <= 20 &&
+             (('title' in data && data.title is string && data.title.size() > 0 && data.title.size() <= 160) ||
+              ('message' in data && data.message is string && data.message.size() > 0 && data.message.size() <= 2000) ||
+              ('body' in data && data.body is string && data.body.size() > 0 && data.body.size() <= 2000) ||
+              ('description' in data && data.description is string && data.description.size() > 0 && data.description.size() <= 2000)) &&
+             isValidOptionalNullableString(data, 'title', 160) &&
+             isValidOptionalNullableString(data, 'message', 2000) &&
+             isValidOptionalNullableString(data, 'body', 2000) &&
+             isValidOptionalNullableString(data, 'description', 2000) &&
+             isValidOptionalNullableString(data, 'severity', 40) &&
+             isValidOptionalNullableString(data, 'level', 40) &&
+             isValidOptionalBool(data, 'active') &&
+             isValidOptionalBool(data, 'enabled') &&
+             isValidOptionalNullableString(data, 'cityId', 100) &&
+             isValidOptionalNullableString(data, 'cityName', 80) &&
+             isValidOptionalNullableString(data, 'createdBy', 128) &&
+             isValidOptionalNullableString(data, 'updatedBy', 128) &&
+             isValidOptionalNullableString(data, 'authorUid', 128) &&
+             isValidOptionalNullableDate(data, 'createdAt') &&
+             isValidOptionalNullableDate(data, 'updatedAt') &&
+             isValidOptionalNullableDate(data, 'startsAt') &&
+             isValidOptionalNullableDate(data, 'expiresAt') &&
+             isValidOptionalNullableDate(data, 'publishedAt');
+    }
+
+    function isValidSystemRule(data) {
+      return data.keys().size() >= 3 &&
+             data.keys().size() <= 20 &&
+             hasRequiredFields(['cityId', 'aqiThreshold', 'enabled']) &&
+             data.cityId is string && data.cityId.size() > 0 && data.cityId.size() <= 100 &&
+             isValidOptionalNullableString(data, 'cityName', 80) &&
+             data.aqiThreshold is number && data.aqiThreshold >= 1 && data.aqiThreshold <= 500 &&
+             data.enabled is bool &&
+             isValidOptionalBool(data, 'aboveThreshold') &&
+             isValidOptionalBool(data, 'emailNotify') &&
+             isValidOptionalNullableString(data, 'message', 500) &&
+             isValidOptionalNullableString(data, 'severity', 40) &&
+             isValidOptionalNullableString(data, 'createdBy', 128) &&
+             isValidOptionalNullableString(data, 'updatedBy', 128) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidUserPreferences(data) {
+      return ((!('theme' in resource.data) && !('theme' in data)) ||
+              ('theme' in data && data.theme is string && data.theme in ['dark', 'light'])) &&
+             ((!('emailAlertsEnabled' in resource.data) && !('emailAlertsEnabled' in data)) ||
+              ('emailAlertsEnabled' in data && data.emailAlertsEnabled is bool)) &&
+             ((!('defaultCityId' in resource.data) && !('defaultCityId' in data)) ||
+              ('defaultCityId' in data &&
+               (data.defaultCityId == null ||
+                (data.defaultCityId is string && data.defaultCityId.size() <= 100)))) &&
+             (!('lastSeenAt' in resource.data) || 'lastSeenAt' in data) &&
+             (!('lastSeenAt' in request.resource.data.diff(resource.data).affectedKeys()) ||
+              ('lastSeenAt' in data && isRecentOrValidClockSkew(data.lastSeenAt)));
+    }
+
+    function isValidUserUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'defaultCityId', 'theme', 'emailAlertsEnabled', 'lastSeenAt'
+             ]) &&
+             areImmutableFieldsUnchanged([
+               'role', 'disabled', 'email', 'watchlistCount', 'createdAt', 'uid'
+             ]) &&
+             isValidUserPreferences(request.resource.data);
+    }
+
+    function isValidWatchlistItem(data, cityId) {
+      return hasRequiredFields(['cityId', 'name', 'latitude', 'longitude', 'addedAt']) &&
+             hasOnlyAllowedFields(['cityId', 'name', 'latitude', 'longitude', 'addedAt']) &&
+             data.cityId is string && data.cityId.size() > 0 && data.cityId.size() <= 100 &&
+             data.cityId == cityId &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 80 &&
+             isValidLatLng(data.latitude, data.longitude) &&
+             data.addedAt is timestamp;
+    }
+
+    function isValidAlertRule(data) {
+      return hasRequiredFields(['cityId', 'cityName', 'aqiThreshold', 'enabled', 'emailNotify']) &&
+             data.cityId is string && data.cityId.size() > 0 && data.cityId.size() <= 100 &&
+             data.cityName is string && data.cityName.size() > 0 && data.cityName.size() <= 80 &&
+             data.aqiThreshold is number && data.aqiThreshold >= 1 && data.aqiThreshold <= 500 &&
+             data.enabled is bool &&
+             data.emailNotify is bool &&
+             (!('aboveThreshold' in data) || data.aboveThreshold is bool) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) ||
+              (data.updatedAt is timestamp && data.updatedAt <= request.time + duration.value(5, 'm')));
+    }
+
+    function isValidAlertRuleAboveThresholdUpdate() {
+      return (!('aboveThreshold' in resource.data) || 'aboveThreshold' in request.resource.data) &&
+             (!('aboveThreshold' in request.resource.data) ||
+              request.resource.data.aboveThreshold == false ||
+              ('aboveThreshold' in resource.data &&
+               request.resource.data.aboveThreshold == resource.data.aboveThreshold));
+    }
+
+    function isValidAlertAcknowledgement() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+             resource.data.status == 'Active' &&
+             request.resource.data.status is string &&
+             request.resource.data.status == 'Acknowledged';
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // 1. Global monitored cities (publicly readable, admin-writable)
+    match /globalCities/{cityId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidGlobalCity(request.resource.data, cityId);
+      allow update: if isAdmin() &&
+                       isValidGlobalCity(request.resource.data, cityId) &&
+                       (!('createdAt' in resource.data) ||
+                        ('createdAt' in request.resource.data &&
+                         request.resource.data.createdAt == resource.data.createdAt));
+      allow delete: if isAdmin();
+
+      // 2. City air quality readings (publicly readable, admin / Admin SDK writable)
+      match /readings/{readingId} {
+        allow read: if true;
+        allow create: if isAdmin() && isValidReading(request.resource.data, cityId);
+        allow update: if isAdmin() &&
+                         isValidReading(request.resource.data, cityId) &&
+                         (!('createdAt' in resource.data) ||
+                          ('createdAt' in request.resource.data &&
+                           request.resource.data.createdAt == resource.data.createdAt));
+        allow delete: if isAdmin();
+      }
+    }
+
+    // 3. System health advisories (publicly readable, admin-writable)
+    match /systemAdvisories/{advisoryId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidSystemAdvisory(request.resource.data);
+      allow update: if isAdmin() &&
+                       isValidSystemAdvisory(request.resource.data) &&
+                       (!('createdAt' in resource.data) ||
+                        ('createdAt' in request.resource.data &&
+                         request.resource.data.createdAt == resource.data.createdAt));
+      allow delete: if isAdmin();
+    }
+
+    // 4. Shared system alert rules (publicly readable, admin-writable)
+    match /systemRules/{ruleId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidSystemRule(request.resource.data);
+      allow update: if isAdmin() &&
+                       isValidSystemRule(request.resource.data) &&
+                       (!('createdAt' in resource.data) ||
+                        ('createdAt' in request.resource.data &&
+                         request.resource.data.createdAt == resource.data.createdAt));
+      allow delete: if isAdmin();
+    }
+
+    // 5. User profiles (PII protected: owner or admin read; server bootstrap create/delete; safe preference updates only)
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if false;
+      allow update: if isOwner(uid) &&
+                       isNotDisabledUserDoc(resource.data) &&
+                       isValidUserUpdate();
+      allow delete: if false;
+
+      // 6. User city watchlist (owner or admin read; active owner create/update/delete with strict schema)
+      match /watchlist/{cityId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) &&
+                         isActiveUser() &&
+                         isValidWatchlistItem(request.resource.data, cityId) &&
+                         isRecentOrValidClockSkew(request.resource.data.addedAt);
+        allow update: if isOwner(uid) &&
+                         isActiveUser() &&
+                         isValidWatchlistItem(request.resource.data, cityId) &&
+                         areImmutableFieldsUnchanged(['cityId', 'addedAt']);
+        allow delete: if isOwner(uid) && isActiveUser();
+      }
+
+      // 7. User personal alert rules (owner or admin read; active owner create/update/delete; server eval state protected)
+      match /alertRules/{ruleId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) &&
+                         isActiveUser() &&
+                         hasOnlyAllowedFields([
+                           'cityId', 'cityName', 'aqiThreshold', 'enabled', 'emailNotify',
+                           'aboveThreshold', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidAlertRule(request.resource.data) &&
+                         (!('aboveThreshold' in request.resource.data) ||
+                          request.resource.data.aboveThreshold == false) &&
+                         (!('createdAt' in request.resource.data) ||
+                          isRecentOrValidClockSkew(request.resource.data.createdAt));
+        allow update: if isOwner(uid) &&
+                         isActiveUser() &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                           'cityId', 'cityName', 'aqiThreshold', 'enabled', 'emailNotify',
+                           'aboveThreshold', 'updatedAt'
+                         ]) &&
+                         isValidAlertRule(request.resource.data) &&
+                         (!('createdAt' in resource.data) ||
+                          ('createdAt' in request.resource.data &&
+                           request.resource.data.createdAt == resource.data.createdAt)) &&
+                         isValidAlertRuleAboveThresholdUpdate();
+        allow delete: if isOwner(uid) && isActiveUser();
+      }
+
+      // 8. User smog alerts (owner or admin read; server-created; active owner may acknowledge Active -> Acknowledged only)
+      match /alerts/{alertId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if false;
+        allow update: if isOwner(uid) &&
+                         isActiveUser() &&
+                         isValidAlertAcknowledgement();
+        allow delete: if false;
+      }
+    }
+
+    // 9. Outbound email delivery audit logs (admin read only; Admin SDK writes only)
+    match /emailLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // 10. Default catch-all deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

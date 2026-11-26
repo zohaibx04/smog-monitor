@@ -1,0 +1,10 @@
+{
+  "description": "Monitor air quality across locations, explore AQI and pollutant trends, and configure smog alerts to help communities and administrators respond to unhealthy conditions.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

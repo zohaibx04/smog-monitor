@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   assertMethod,
   getAdminDb,
@@ -6,7 +6,7 @@ import {
   parseJsonBody,
   requireAdmin,
   sendError,
-} from '../_lib/firebaseAdmin';
+} from '../_lib/firebaseAdmin.js';
 
 type ItemKind = 'advisory' | 'rule';
 

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   assertMethod,
   getAdminDb,
@@ -9,8 +9,8 @@ import {
   requireAdmin,
   saveCityReadings,
   sendError,
-} from '../_lib/firebaseAdmin';
-import { fetchAirQuality } from '../_lib/openMeteo';
+} from '../_lib/firebaseAdmin.js';
+import { fetchAirQuality } from '../_lib/openMeteo.js';
 
 interface CityBody {
   id?: unknown;

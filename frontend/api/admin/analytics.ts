@@ -1,10 +1,10 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   assertMethod,
   getAdminDb,
   requireAdmin,
   sendError,
-} from '../_lib/firebaseAdmin';
+} from '../_lib/firebaseAdmin.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!assertMethod(req, res, ['GET'])) return;

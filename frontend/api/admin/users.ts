@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   assertMethod,
   getAdminAuth,
@@ -8,7 +8,7 @@ import {
   requireAdmin,
   sendError,
   type UserRole,
-} from '../_lib/firebaseAdmin';
+} from '../_lib/firebaseAdmin.js';
 
 interface PatchUserBody {
   uid?: unknown;

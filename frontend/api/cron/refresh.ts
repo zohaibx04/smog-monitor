@@ -1,6 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
+﻿import { timingSafeEqual } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sendThresholdAlertEmail } from '../_lib/email';
+import { sendThresholdAlertEmail } from '../_lib/email.js';
 import {
   assertMethod,
   extractBearerToken,
@@ -10,8 +10,8 @@ import {
   requireAdmin,
   saveCityReadings,
   sendError,
-} from '../_lib/firebaseAdmin';
-import { fetchAirQuality, type AirQualityReading } from '../_lib/openMeteo';
+} from '../_lib/firebaseAdmin.js';
+import { fetchAirQuality, type AirQualityReading } from '../_lib/openMeteo.js';
 
 const CONCURRENCY_LIMIT = 5;
 

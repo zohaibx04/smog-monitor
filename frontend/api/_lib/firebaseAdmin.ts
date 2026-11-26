@@ -1,8 +1,8 @@
-import { cert, getApp, getApps, initializeApp, type App, type ServiceAccount } from 'firebase-admin/app';
+﻿import { cert, getApp, getApps, initializeApp, type App, type ServiceAccount } from 'firebase-admin/app';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { AirQualityReading } from './openMeteo';
+import type { AirQualityReading } from './openMeteo.js';
 
 export type UserRole = 'admin' | 'user';
 

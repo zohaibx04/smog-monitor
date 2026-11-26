@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { FieldValue } from 'firebase-admin/firestore';
 import {
   assertMethod,
@@ -8,7 +8,7 @@ import {
   HttpError,
   sendError,
   type UserRole,
-} from '../_lib/firebaseAdmin';
+} from '../_lib/firebaseAdmin.js';
 
 function getConfiguredAdminEmails(): Set<string> {
   const raw = process.env.ADMIN_EMAILS ?? '';

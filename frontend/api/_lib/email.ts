@@ -1,4 +1,4 @@
-import { getAdminDb } from './firebaseAdmin';
+﻿import { getAdminDb } from './firebaseAdmin.js';
 
 export interface ThresholdAlertEmailInput {
   uid: string;
@@ -36,7 +36,7 @@ function getAqiSeverity(aqi: number): { label: string; color: string; bg: string
 }
 
 function formatMetric(value: number | null, unit: string): string {
-  if (value == null || !Number.isFinite(value)) return '—';
+  if (value == null || !Number.isFinite(value)) return 'â€”';
   return `${Math.round(value * 10) / 10} ${unit}`;
 }
 
@@ -77,13 +77,13 @@ function buildAlertHtml(input: ThresholdAlertEmailInput, resolvedAppUrl: string)
             </td>
             <td style="padding:16px;border-right:1px solid #262e39;width:33%;vertical-align:top;">
               <div style="font-size:11px;text-transform:uppercase;color:#8b95a5;margin-bottom:6px;">PM2.5</div>
-              <div style="font-size:17px;font-weight:600;color:#e5e9f0;font-variant-numeric:tabular-nums;">${escapeHtml(formatMetric(input.pm25, 'µg/m³'))}</div>
+              <div style="font-size:17px;font-weight:600;color:#e5e9f0;font-variant-numeric:tabular-nums;">${escapeHtml(formatMetric(input.pm25, 'Âµg/mÂ³'))}</div>
               <div style="font-size:11px;color:#8b95a5;margin-top:10px;">Your Threshold</div>
               <div style="font-size:14px;font-weight:600;color:#e5e9f0;font-variant-numeric:tabular-nums;">AQI &gt; ${Math.round(input.threshold)}</div>
             </td>
             <td style="padding:16px;width:33%;vertical-align:top;">
               <div style="font-size:11px;text-transform:uppercase;color:#8b95a5;margin-bottom:6px;">PM10</div>
-              <div style="font-size:17px;font-weight:600;color:#e5e9f0;font-variant-numeric:tabular-nums;">${escapeHtml(formatMetric(input.pm10, 'µg/m³'))}</div>
+              <div style="font-size:17px;font-weight:600;color:#e5e9f0;font-variant-numeric:tabular-nums;">${escapeHtml(formatMetric(input.pm10, 'Âµg/mÂ³'))}</div>
               <div style="font-size:11px;color:#8b95a5;margin-top:10px;">Source</div>
               <div style="font-size:12px;color:#c0c8d4;">Open-Meteo / CAMS</div>
             </td>

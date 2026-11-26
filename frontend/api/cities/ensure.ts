@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { FieldValue } from 'firebase-admin/firestore';
 import {
   assertMethod,
@@ -10,8 +10,8 @@ import {
   saveCityReadings,
   sendError,
   verifyAuth,
-} from '../_lib/firebaseAdmin';
-import { fetchAirQuality } from '../_lib/openMeteo';
+} from '../_lib/firebaseAdmin.js';
+import { fetchAirQuality } from '../_lib/openMeteo.js';
 
 interface EnsureCityBody {
   docId?: unknown;

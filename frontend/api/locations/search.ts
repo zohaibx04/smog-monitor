@@ -1,6 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { assertMethod, HttpError, sendError } from '../_lib/firebaseAdmin';
-import { searchLocations } from '../_lib/openMeteo';
+﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { assertMethod, HttpError, sendError } from '../_lib/firebaseAdmin.js';
+import { searchLocations } from '../_lib/openMeteo.js';
 
 function queryParam(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';

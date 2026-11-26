@@ -6,8 +6,8 @@ import {
   isReadingStale,
   saveCityReadings,
   sendError,
-} from '../../_lib/firebaseAdmin';
-import { fetchAirQuality, type AirQualityReading } from '../../_lib/openMeteo';
+} from '../../_lib/firebaseAdmin.js';
+import { fetchAirQuality, type AirQualityReading } from '../../_lib/openMeteo.js';
 
 interface HistoryEntry extends AirQualityReading {
   id: string;

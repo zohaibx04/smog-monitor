@@ -91,6 +91,7 @@ service cloud.firestore {
     //      - defaultCityId: string | null (<= 100 chars)
     //      - theme: 'dark' | 'light'
     //      - emailAlertsEnabled: bool
+    //      - healthProfile: 'general' | 'respiratory' | 'sensitive' | 'athlete'
     //      - lastSeenAt: timestamp (<= request.time + 5m)
     //    Immutable / server-managed fields:
     //      - role, disabled, email, watchlistCount, createdAt, uid
@@ -389,6 +390,10 @@ service cloud.firestore {
               ('defaultCityId' in data &&
                (data.defaultCityId == null ||
                 (data.defaultCityId is string && data.defaultCityId.size() <= 100)))) &&
+             ((!('healthProfile' in resource.data) && !('healthProfile' in data)) ||
+              ('healthProfile' in data &&
+               data.healthProfile is string &&
+               data.healthProfile in ['general', 'respiratory', 'sensitive', 'athlete'])) &&
              (!('lastSeenAt' in resource.data) || 'lastSeenAt' in data) &&
              (!('lastSeenAt' in request.resource.data.diff(resource.data).affectedKeys()) ||
               ('lastSeenAt' in data && isRecentOrValidClockSkew(data.lastSeenAt)));
@@ -396,7 +401,7 @@ service cloud.firestore {
 
     function isValidUserUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-               'defaultCityId', 'theme', 'emailAlertsEnabled', 'lastSeenAt'
+               'defaultCityId', 'theme', 'emailAlertsEnabled', 'healthProfile', 'lastSeenAt'
              ]) &&
              areImmutableFieldsUnchanged([
                'role', 'disabled', 'email', 'watchlistCount', 'createdAt', 'uid'
@@ -499,6 +504,7 @@ service cloud.firestore {
       allow read: if isOwner(uid) || isAdmin();
       allow create: if false;
       allow update: if isOwner(uid) &&
+                       (!('disabled' in request.auth.token) || request.auth.token.disabled == false) &&
                        isNotDisabledUserDoc(resource.data) &&
                        isValidUserUpdate();
       allow delete: if false;

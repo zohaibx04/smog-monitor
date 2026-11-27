@@ -1693,7 +1693,7 @@ td.num-col,
   }
   .topbar-admin-tag {
     padding: 2px 5px;
-    font-size: 11px;
+    font-size: 12px;
   }
 }
 
@@ -1711,6 +1711,13 @@ td.num-col,
 }
 
 @media (max-width: 359px) {
+  .page-header h1 {
+    font-size: 18px;
+  }
+  .refresh-btn {
+    padding: 0 10px;
+    font-size: 12px;
+  }
   .page-header-actions:has(.header-location-select) .refresh-btn {
     width: 100%;
   }

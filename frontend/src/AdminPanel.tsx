@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { category } from './api'
 import { Icon } from './App'
 import SelectDropdown from './SelectDropdown'
 
@@ -93,6 +94,12 @@ function initialsOf(name: string | null, email: string | null): string {
   const parts = source.split(/\s+/)
   if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
   return source.slice(0, 2).toUpperCase()
+}
+
+function escapeCsvCell(value: unknown): string {
+  const text = String(value ?? '')
+  const safeText = typeof value === 'string' && /^[\s]*[=+@-]/.test(text) ? `'${text}` : text
+  return `"${safeText.replaceAll('"', '""')}"`
 }
 
 export default function AdminPanel({
@@ -293,6 +300,68 @@ export default function AdminPanel({
   const staleOrErrorCities = cities.filter((c) => c.stale || c.lastError)
   const maxWatchlist = Math.max(1, ...(analytics?.topCities.map((c) => c.watchlistCount) ?? [1]))
 
+  async function exportComplianceCsv() {
+    setBusy(true)
+    setError('')
+    try {
+      const list =
+        cities.length > 0
+          ? cities
+          : (() =>
+              authedFetch<AdminCity[] | { cities?: AdminCity[] }>('/api/admin/cities').then((res) =>
+                Array.isArray(res) ? res : res.cities ?? [],
+              ))()
+      const resolvedCities = await Promise.resolve(list)
+      const headers = [
+        'City',
+        'Country',
+        'Active',
+        'Starter',
+        'US AQI',
+        'Category',
+        'PM2.5 (ug/m3)',
+        'PM10 (ug/m3)',
+        'WHO PM2.5 Compliant (<=15)',
+        'Stale',
+        'Last Updated UTC',
+        'Last Error',
+      ]
+      const rows = resolvedCities.map((c) => {
+        const aqi = c.latestReading?.aqi ?? null
+        const pm25 = c.latestReading?.pm25 ?? null
+        const pm10 = c.latestReading?.pm10 ?? null
+        const country = c.name.includes(',') ? c.name.split(',').slice(1).join(',').trim() : ''
+        const whoCompliant = pm25 == null ? 'Unknown' : pm25 <= 15 ? 'Yes' : 'No'
+        return [
+          c.name,
+          country,
+          c.active ? 'Yes' : 'No',
+          c.isStarter ? 'Yes' : 'No',
+          aqi != null ? Math.round(aqi) : '',
+          category(aqi).label,
+          pm25 != null ? pm25 : '',
+          pm10 != null ? pm10 : '',
+          whoCompliant,
+          c.stale ? 'Yes' : 'No',
+          c.latestReading?.timestamp ?? c.updatedAt ?? '',
+          c.lastError ?? '',
+        ]
+      })
+      const csv = [headers, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\r\n')
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `smog-monitor-compliance-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      setNotice(`Exported compliance report for ${resolvedCities.length} cities`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to export compliance CSV')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="admin-panel">
       {error && (
@@ -319,6 +388,26 @@ export default function AdminPanel({
 
       {section === 'admin-overview' && analytics && (
         <div className="admin-panel-section">
+          <div className="card admin-panel-card">
+            <div className="card-title-row">
+              <div>
+                <h3>Network overview & compliance</h3>
+                <p className="data-footnote">
+                  Live telemetry coverage across {analytics.totalCities} global cities
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn secondary admin-export-btn"
+                disabled={busy}
+                onClick={() => void exportComplianceCsv()}
+              >
+                <Icon name="download" size={16} />
+                Export compliance CSV
+              </button>
+            </div>
+          </div>
+
           <div className="admin-kpi-grid">
             <div className="card admin-kpi-card">
               <span className="admin-kpi-label">Registered users</span>
@@ -926,25 +1015,36 @@ export default function AdminPanel({
                   Open-Meteo telemetry sync and threshold evaluation across {cities.length} global cities
                 </p>
               </div>
-              <button
-                type="button"
-                className="btn primary"
-                disabled={busy}
-                onClick={() =>
-                  void runAction(async () => {
-                    const res = await authedFetch<{
-                      refreshed?: number
-                      errors?: number
-                      alertsCreated?: number
-                      emailsSent?: number
-                    }>('/api/cron/refresh', 'POST')
-                    return `Synced ${res.refreshed ?? 0} cities · ${res.alertsCreated ?? 0} alerts created · ${res.emailsSent ?? 0} emails sent`
-                  })
-                }
-              >
-                <Icon name="refresh" size={16} />
-                Force global refresh
-              </button>
+              <div className="admin-row-actions">
+                <button
+                  type="button"
+                  className="btn secondary admin-export-btn"
+                  disabled={busy}
+                  onClick={() => void exportComplianceCsv()}
+                >
+                  <Icon name="download" size={16} />
+                  Export compliance CSV
+                </button>
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={busy}
+                  onClick={() =>
+                    void runAction(async () => {
+                      const res = await authedFetch<{
+                        refreshed?: number
+                        errors?: number
+                        alertsCreated?: number
+                        emailsSent?: number
+                      }>('/api/cron/refresh', 'POST')
+                      return `Synced ${res.refreshed ?? 0} cities · ${res.alertsCreated ?? 0} alerts created · ${res.emailsSent ?? 0} emails sent`
+                    })
+                  }
+                >
+                  <Icon name="refresh" size={16} />
+                  Force global refresh
+                </button>
+              </div>
             </div>
 
             <div className="admin-kpi-grid">

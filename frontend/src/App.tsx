@@ -3,9 +3,11 @@ export { default } from './Dashboard'
 
 export type Page =
   | "dashboard"
+  | "forecast"
   | "usaqi"
   | "pm25"
   | "pm10"
+  | "gases"
   | "rankings"
   | "global-rankings"
   | "map"
@@ -287,12 +289,14 @@ export const navGroups: NavGroup[] = ["Overview", "Pollutants", "Network", "Admi
 
 export const navItems: { id: Page; label: string; icon: IconName; group: NavGroup }[] = [
   { id: "dashboard", label: "Smog overview", icon: "grid", group: "Overview" },
+  { id: "forecast", label: "Forecast & health", icon: "activity", group: "Overview" },
   { id: "rankings", label: "City rankings", icon: "list", group: "Overview" },
   { id: "global-rankings", label: "Global rankings", icon: "globe", group: "Overview" },
   { id: "map", label: "Smog map", icon: "map", group: "Overview" },
   { id: "usaqi", label: "US AQI", icon: "activity", group: "Pollutants" },
   { id: "pm25", label: "PM2.5", icon: "droplet", group: "Pollutants" },
   { id: "pm10", label: "PM10", icon: "layers", group: "Pollutants" },
+  { id: "gases", label: "Gases & weather", icon: "cloud", group: "Pollutants" },
   { id: "areas", label: "Compare locations", icon: "pin", group: "Network" },
   { id: "add-location", label: "My locations", icon: "plus", group: "Network" },
   { id: "alerts", label: "Smog alerts", icon: "bell", group: "Network" },

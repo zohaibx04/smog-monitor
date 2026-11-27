@@ -193,7 +193,7 @@ export default function HistoryChart({ readings, pollutant }: { readings: Readin
             id={tooltipId}
             role="tooltip"
             className="history-tooltip"
-            style={{ left: `clamp(8px, calc(${x(active) / 750 * 100}% - 115px), max(8px, calc(100% - 238px)))` }}
+            style={{ left: `clamp(8px, calc(${x(active) / 750 * 100}% - var(--tooltip-w, 230px) / 2), max(8px, calc(100% - var(--tooltip-w, 230px) - 8px)))` }}
           >
             <time dateTime={active.timestamp}>
               {new Date(active.timestamp).toLocaleDateString(undefined, {

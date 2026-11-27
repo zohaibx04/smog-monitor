@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import type { HealthProfile } from '../api'
 import { auth, db, googleProvider, isFirebaseConfigured } from './config'
 
 export interface UserProfile {
@@ -20,6 +21,7 @@ export interface UserProfile {
   defaultCityId?: string | null
   theme?: 'dark' | 'light'
   emailAlertsEnabled?: boolean
+  healthProfile: HealthProfile
   createdAt?: string
   lastSeenAt?: string
 }
@@ -28,6 +30,14 @@ export interface ProfilePrefsPatch {
   defaultCityId?: string | null
   theme?: 'dark' | 'light'
   emailAlertsEnabled?: boolean
+  healthProfile?: HealthProfile
+}
+
+function normalizeHealthProfile(value: unknown): HealthProfile {
+  if (value === 'respiratory' || value === 'sensitive' || value === 'athlete') {
+    return value
+  }
+  return 'general'
 }
 
 interface AuthContextValue {
@@ -141,6 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           theme: firestoreProfile?.theme ?? bootstrapRaw?.theme,
           emailAlertsEnabled:
             firestoreProfile?.emailAlertsEnabled ?? bootstrapRaw?.emailAlertsEnabled ?? true,
+          healthProfile: normalizeHealthProfile(
+            firestoreProfile?.healthProfile ?? bootstrapRaw?.healthProfile,
+          ),
           createdAt: firestoreProfile?.createdAt ?? bootstrapRaw?.createdAt,
           lastSeenAt: firestoreProfile?.lastSeenAt ?? bootstrapRaw?.lastSeenAt,
         }
@@ -203,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (prefs.defaultCityId !== undefined) next.defaultCityId = prefs.defaultCityId
       if (prefs.theme !== undefined) next.theme = prefs.theme
       if (prefs.emailAlertsEnabled !== undefined) next.emailAlertsEnabled = prefs.emailAlertsEnabled
+      if (prefs.healthProfile !== undefined) next.healthProfile = prefs.healthProfile
 
       if (Object.keys(next).length === 0) return
 

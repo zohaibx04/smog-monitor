@@ -1,11 +1,24 @@
 import SmogOverview from './SmogOverview'
 import PollutantTab from './PollutantTab'
 import CityRankings from './CityRankings'
+import ForecastHealthTab from './ForecastHealthTab'
+import GasesWeatherTab from './GasesWeatherTab'
 import MyLocations from './MyLocations'
 import AdminPanel, { type AdminSection } from './AdminPanel'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type FormEvent } from 'react'
 import { Icon, navGroups, navItems, type Page } from './App'
-import { api, category, type Area, type AreaData, type Reading, type Alert, type Preference } from './api'
+import {
+  api,
+  category,
+  fetchProactiveInsights,
+  type Area,
+  type AreaData,
+  type Reading,
+  type Alert,
+  type Preference,
+  type HealthProfile,
+  type ProactiveInsights,
+} from './api'
 import { useAuth } from './firebase/AuthContext'
 import {
   acknowledgeUserAlert,
@@ -27,7 +40,13 @@ const aqiNumber = (value: number | null | undefined) => value == null ? '—' : 
 const date = (value?: string) => value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'No reading received'
 const desktopViewport = '(min-width: 901px)'
 const historyPages: Page[] = ['dashboard', 'usaqi', 'pm25', 'pm10']
+const hasLocationSelectorPages: Page[] = ['dashboard', 'forecast', 'usaqi', 'pm25', 'pm10', 'gases']
 const SmogMap = lazy(() => import('./SmogMap'))
+
+function readSavedHealthProfile(): HealthProfile {
+  const raw = window.localStorage.getItem('smog-health-profile')
+  return raw === 'respiratory' || raw === 'sensitive' || raw === 'athlete' ? raw : 'general'
+}
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) { return <section className={`card ${className}`}>{children}</section> }
 function Pill({ aqi }: { aqi?: number | null }) { const c = category(aqi); return <span className={`status-pill ${c.style}`}><span className="status-dot" />{c.label}</span> }
 function Empty({ children }: { children: ReactNode }) { return <div className="empty-state"><Icon name="database" size={16} /><p>{children}</p></div> }
@@ -133,6 +152,10 @@ export default function DashboardApp() {
   const [preferences, setPreferences] = useState<Preference[]>([])
   const [selected, setSelected] = useState(0)
   const [historyResult, setHistoryResult] = useState<{ key: string; readings: Reading[] } | null>(null)
+  const [insightsResult, setInsightsResult] = useState<{ key: string; data: ProactiveInsights } | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsError, setInsightsError] = useState('')
+  const [healthProfile, setHealthProfile] = useState<HealthProfile>(readSavedHealthProfile)
   const [hours, setHours] = useState(24)
   const [mode, setMode] = useState('connecting')
   const [busy, setBusy] = useState(false)
@@ -171,14 +194,24 @@ export default function DashboardApp() {
   const historyKey = `${selected}:${historyHours}`
   const history = historyResult?.key === historyKey ? historyResult.readings : []
   const current = userAreas.find(a => a.area.id === selected) ?? globalAreas.find(a => a.area.id === selected)
+  const insightsKey = current
+    ? `${current.area.docId ?? current.area.id}:${current.area.latitude}:${current.area.longitude}`
+    : ''
+  const insights = insightsResult?.key === insightsKey ? insightsResult.data : null
+  const enabledThresholds = preferences
+    .filter(p => p.enabled && p.areaId === selected)
+    .map(p => p.aqiThreshold)
+  const userThreshold = enabledThresholds.length ? Math.min(...enabledThresholds) : null
   const defaultAreas = areas.filter(item => !item.area.customLocation)
   const activeAlerts = alerts.filter(a => a.status === 'Active').length
   const visibleAdvisories = advisories.filter(a => a.active && !dismissedAdvisories.includes(a.id))
   const lockedViewport =
     page === 'dashboard' ||
+    page === 'forecast' ||
     page === 'usaqi' ||
     page === 'pm25' ||
     page === 'pm10' ||
+    page === 'gases' ||
     page === 'rankings' ||
     page === 'global-rankings' ||
     page === 'areas' ||
@@ -220,6 +253,18 @@ export default function DashboardApp() {
       setTheme(profile.theme)
     }
   }, [profile?.theme])
+
+  useEffect(() => {
+    if (
+      profile?.healthProfile === 'general' ||
+      profile?.healthProfile === 'respiratory' ||
+      profile?.healthProfile === 'sensitive' ||
+      profile?.healthProfile === 'athlete'
+    ) {
+      setHealthProfile(profile.healthProfile)
+      window.localStorage.setItem('smog-health-profile', profile.healthProfile)
+    }
+  }, [profile?.healthProfile])
 
   useEffect(() => {
     const viewport = window.matchMedia(desktopViewport)
@@ -387,6 +432,30 @@ export default function DashboardApp() {
     }
   }, [firebaseMode, globalAreas, historyHours, historyKey, page, selected, userAreas, version])
 
+  useEffect(() => {
+    let active = true
+    if ((page !== 'forecast' && page !== 'gases') || !current) return
+    setInsightsLoading(true)
+    setInsightsError('')
+    fetchProactiveInsights(
+      current.area.docId || String(current.area.id),
+      current.area.latitude,
+      current.area.longitude,
+    )
+      .then(data => {
+        if (active) setInsightsResult({ key: insightsKey, data })
+      })
+      .catch(e => {
+        if (active) setInsightsError(e instanceof Error ? e.message : 'Unable to load forecast and weather insights')
+      })
+      .finally(() => {
+        if (active) setInsightsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [current, insightsKey, page, version])
+
   async function action(work: () => Promise<unknown>, message: string) {
     setBusy(true)
     setError('')
@@ -417,6 +486,14 @@ export default function DashboardApp() {
     setTheme(next)
     if (firebaseMode && user) {
       void updateProfilePrefs({ theme: next })
+    }
+  }
+
+  function handleHealthProfileChange(next: HealthProfile) {
+    setHealthProfile(next)
+    window.localStorage.setItem('smog-health-profile', next)
+    if (firebaseMode && user) {
+      void updateProfilePrefs({ healthProfile: next })
     }
   }
 
@@ -528,9 +605,11 @@ export default function DashboardApp() {
 
   const heading = {
     dashboard: { title: 'Smog overview', subtitle: '' },
+    forecast: { title: 'Forecast & health', subtitle: '' },
     usaqi: { title: 'US AQI', subtitle: '' },
     pm25: { title: 'PM2.5', subtitle: '' },
     pm10: { title: 'PM10', subtitle: '' },
+    gases: { title: 'Gases & weather', subtitle: '' },
     rankings: { title: 'City rankings', subtitle: '' },
     'global-rankings': { title: 'Global rankings', subtitle: '' },
     map: { title: 'Smog map', subtitle: '' },
@@ -675,8 +754,8 @@ export default function DashboardApp() {
             <h1>{heading.title}</h1>
           </div>
           <div className="page-header-actions">
-            {historyPages.includes(page) && selectOptionsAreas.length > 0 && select}
-            {historyPages.includes(page) && current && !current.area.active && (
+            {hasLocationSelectorPages.includes(page) && selectOptionsAreas.length > 0 && select}
+            {hasLocationSelectorPages.includes(page) && current && !current.area.active && (
               <span className="inline-warning">Monitoring paused</span>
             )}
             <button
@@ -773,9 +852,29 @@ export default function DashboardApp() {
             </Card>}
             <SmogOverview current={current} areas={areas} alerts={alerts} preferences={preferences} history={history} historyLoading={historyLoading} mode={mode} navigate={navigate} />
           </>}
+          {page === 'forecast' && (
+            <ForecastHealthTab
+              current={current}
+              insights={insights}
+              loading={insightsLoading}
+              error={insightsError}
+              healthProfile={healthProfile}
+              onHealthProfileChange={handleHealthProfileChange}
+              userThreshold={userThreshold}
+              onOpenAlerts={() => navigate('alerts')}
+            />
+          )}
           {page === 'usaqi' && <PollutantTab pollutant="aqi" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
           {page === 'pm25' && <PollutantTab pollutant="pm25" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
           {page === 'pm10' && <PollutantTab pollutant="pm10" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
+          {page === 'gases' && (
+            <GasesWeatherTab
+              current={current}
+              insights={insights}
+              loading={insightsLoading}
+              error={insightsError}
+            />
+          )}
           {page === 'rankings' && <CityRankings areas={userAreas} selectedId={selected} onSelectCity={id => { setSelected(id); navigate('dashboard') }} />}
           {page === 'global-rankings' && <CityRankings areas={globalAreas} selectedId={selected} onSelectCity={id => { setSelected(id); navigate('dashboard') }} />}
           {page === 'areas' && <div className="compare-viewport">

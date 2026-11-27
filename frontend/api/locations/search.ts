@@ -1,5 +1,5 @@
 ﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { assertMethod, HttpError, sendError } from '../_lib/firebaseAdmin.js';
+import { assertMethod, HttpError, sendError, verifyAuth } from '../_lib/firebaseAdmin.js';
 import { searchLocations } from '../_lib/openMeteo.js';
 
 function queryParam(value: string | string[] | undefined): string {
@@ -11,6 +11,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (!assertMethod(req, res, ['GET'])) return;
 
   try {
+    await verifyAuth(req);
+
     const q = queryParam(req.query.q).trim();
     const country = queryParam(req.query.country).trim();
 

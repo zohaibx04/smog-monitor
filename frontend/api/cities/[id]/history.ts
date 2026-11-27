@@ -6,6 +6,7 @@ import {
   isReadingStale,
   saveCityReadings,
   sendError,
+  verifyAuth,
 } from '../../_lib/firebaseAdmin.js';
 import { fetchAirQuality, type AirQualityReading } from '../../_lib/openMeteo.js';
 
@@ -22,6 +23,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (!assertMethod(req, res, ['GET'])) return;
 
   try {
+    await verifyAuth(req);
+
     const id = queryParam(req.query.id).trim();
     if (!id) {
       throw new HttpError(400, 'City ID is required.');
@@ -116,6 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     entries.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    res.setHeader('Cache-Control', 'private, max-age=120');
     res.status(200).json(entries);
   } catch (err) {
     sendError(res, err);

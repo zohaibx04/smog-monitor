@@ -4,6 +4,7 @@ import {
   getAdminDb,
   HttpError,
   sendError,
+  verifyAuth,
 } from '../../_lib/firebaseAdmin.js';
 import { fetchProactiveInsights } from '../../_lib/openMeteo.js';
 
@@ -25,6 +26,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (!assertMethod(req, res, ['GET'])) return;
 
   try {
+    await verifyAuth(req);
+
     const id = queryParam(req.query.id).trim();
     const rawLat = queryParam(req.query.lat).trim();
     const rawLon = queryParam(req.query.lon).trim();
@@ -68,7 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const insights = await fetchProactiveInsights(latitude, longitude);
-    res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=300');
+    res.setHeader('Cache-Control', 'private, max-age=300');
     res.status(200).json(insights);
   } catch (err) {
     sendError(res, err);

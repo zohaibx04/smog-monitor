@@ -29,6 +29,7 @@ export interface MyLocationsProps {
   onRemoveCity?: (area: Area) => Promise<void>
   onSetDefaultCity?: (area: Area) => Promise<void>
   onOpenCity: (id: number) => void
+  getIdToken?: () => Promise<string | null>
 }
 
 function formatAqi(value: number | null | undefined): string {
@@ -47,6 +48,7 @@ export default function MyLocations({
   onRemoveCity,
   onSetDefaultCity,
   onOpenCity,
+  getIdToken,
 }: MyLocationsProps) {
   const [pickerTab, setPickerTab] = useState<PickerTab>('catalog')
   const [catalogQuery, setCatalogQuery] = useState('')
@@ -145,7 +147,10 @@ export default function MyLocations({
       discover: 'true',
     })
     try {
-      const response = await fetch(`/api/locations/search?${params}`)
+      const token = isFirebaseMode && getIdToken ? await getIdToken() : null
+      const response = await fetch(`/api/locations/search?${params}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
       if (!response.ok) {
         const detail = await response.json().catch(() => null)
         throw new Error(detail?.message || `Search failed (${response.status})`)

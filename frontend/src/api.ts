@@ -81,17 +81,25 @@ export async function fetchProactiveInsights(
   cityId: string,
   latitude: number,
   longitude: number,
+  idToken?: string | null,
 ): Promise<ProactiveInsights> {
   const params = new URLSearchParams({ lat: String(latitude), lon: String(longitude) })
+  let authFailure: Error | null = null
   try {
-    const apiRes = await fetch(`/api/cities/${encodeURIComponent(cityId)}/forecast?${params}`)
+    const apiRes = await fetch(`/api/cities/${encodeURIComponent(cityId)}/forecast?${params}`, {
+      headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+    })
     if (apiRes.ok) {
       const payload = (await apiRes.json()) as ProactiveInsights
       if (payload && Array.isArray(payload.forecast)) return payload
+    } else if (apiRes.status === 401 || apiRes.status === 403) {
+      const detail = await apiRes.json().catch(() => null)
+      authFailure = new Error(detail?.message || 'Sign in to access live forecast and weather insights')
     }
   } catch {
     // Fall through to direct public Open-Meteo browser fetch when local API route is unavailable
   }
+  if (authFailure) throw authFailure
 
   const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&hourly=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,sulphur_dioxide,carbon_monoxide&forecast_days=3&timezone=GMT`
   const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,visibility,surface_pressure&timezone=GMT`

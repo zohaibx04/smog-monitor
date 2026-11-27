@@ -277,8 +277,14 @@ export async function loadFirebaseWorkspace(uid: string | null): Promise<Firebas
   }
 }
 
-export async function fetchFirebaseHistory(docId: string, hours: number): Promise<Reading[]> {
-  const response = await fetch(`/api/cities/${encodeURIComponent(docId)}/history?hours=${hours}`)
+export async function fetchFirebaseHistory(
+  docId: string,
+  hours: number,
+  idToken?: string | null,
+): Promise<Reading[]> {
+  const response = await fetch(`/api/cities/${encodeURIComponent(docId)}/history?hours=${hours}`, {
+    headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+  })
   if (!response.ok) {
     const detail = await response.json().catch(() => null)
     throw new Error(detail?.message || `Unable to load history (${response.status})`)

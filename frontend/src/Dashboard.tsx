@@ -3,6 +3,7 @@ import PollutantTab from './PollutantTab'
 import CityRankings from './CityRankings'
 import ForecastHealthTab from './ForecastHealthTab'
 import GasesWeatherTab from './GasesWeatherTab'
+import LoginPage, { DisabledAccountView } from './LoginPage'
 import MyLocations from './MyLocations'
 import AdminPanel, { type AdminSection } from './AdminPanel'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type FormEvent } from 'react'
@@ -382,7 +383,24 @@ export default function DashboardApp() {
   }, [firebaseMode, user?.uid])
 
   useEffect(() => {
-    if (firebaseMode && authLoading) return
+    if (!firebaseMode) return
+    if (!authLoading && (!user || profile?.disabled)) {
+      seenAlerts.current = null
+      setGlobalAreas([])
+      setUserAreas([])
+      setAlerts([])
+      setPreferences([])
+      setAdvisories([])
+      setIncomingAlerts([])
+      setHistoryResult(null)
+      setInsightsResult(null)
+      setSelected(0)
+      setLoading(false)
+    }
+  }, [authLoading, firebaseMode, profile?.disabled, user])
+
+  useEffect(() => {
+    if (firebaseMode && (authLoading || !user || profile?.disabled)) return
     let active = true
     const update = () =>
       load()
@@ -404,17 +422,20 @@ export default function DashboardApp() {
       active = false
       clearInterval(timer)
     }
-  }, [authLoading, firebaseMode, load])
+  }, [authLoading, firebaseMode, load, profile?.disabled, user])
 
   useEffect(() => {
     let active = true
+    if (firebaseMode && (authLoading || !user || profile?.disabled)) return
     if (!selected || !historyPages.includes(page)) return
     const target = userAreas.find(a => a.area.id === selected) ?? globalAreas.find(a => a.area.id === selected)
     if (firebaseMode && !target) return
 
     setHistoryLoading(true)
     const request = firebaseMode
-      ? fetchFirebaseHistory(target?.area.docId || String(selected), historyHours)
+      ? getIdToken().then(idToken =>
+          fetchFirebaseHistory(target?.area.docId || String(selected), historyHours, idToken),
+        )
       : api<Reading[]>(`/areas/${selected}/history?hours=${historyHours}`)
 
     request
@@ -430,18 +451,29 @@ export default function DashboardApp() {
     return () => {
       active = false
     }
-  }, [firebaseMode, globalAreas, historyHours, historyKey, page, selected, userAreas, version])
+  }, [authLoading, firebaseMode, getIdToken, globalAreas, historyHours, historyKey, page, profile?.disabled, selected, user, userAreas, version])
 
   useEffect(() => {
     let active = true
+    if (firebaseMode && (authLoading || !user || profile?.disabled)) return
     if ((page !== 'forecast' && page !== 'gases') || !current) return
     setInsightsLoading(true)
     setInsightsError('')
-    fetchProactiveInsights(
-      current.area.docId || String(current.area.id),
-      current.area.latitude,
-      current.area.longitude,
-    )
+    const request = firebaseMode
+      ? getIdToken().then(idToken =>
+          fetchProactiveInsights(
+            current.area.docId || String(current.area.id),
+            current.area.latitude,
+            current.area.longitude,
+            idToken,
+          ),
+        )
+      : fetchProactiveInsights(
+          current.area.docId || String(current.area.id),
+          current.area.latitude,
+          current.area.longitude,
+        )
+    request
       .then(data => {
         if (active) setInsightsResult({ key: insightsKey, data })
       })
@@ -454,7 +486,7 @@ export default function DashboardApp() {
     return () => {
       active = false
     }
-  }, [current, insightsKey, page, version])
+  }, [authLoading, current, firebaseMode, getIdToken, insightsKey, page, profile?.disabled, user, version])
 
   async function action(work: () => Promise<unknown>, message: string) {
     setBusy(true)
@@ -628,6 +660,37 @@ export default function DashboardApp() {
   const activeMonitoredAreas = areas.filter(a => a.area.active)
   const displayName = profile?.displayName || user?.displayName || user?.email || 'Account'
   const avatarUrl = profile?.photoURL || user?.photoURL
+
+  if (firebaseMode && authLoading) {
+    return (
+      <div className="login-auth-loading" role="status">
+        <span>Loading session…</span>
+      </div>
+    )
+  }
+
+  if (firebaseMode && !user) {
+    return (
+      <LoginPage
+        theme={theme}
+        onToggleTheme={() => selectTheme(theme === 'dark' ? 'light' : 'dark')}
+        onSignIn={signInWithGoogle}
+        authError={authError}
+        loading={authLoading}
+      />
+    )
+  }
+
+  if (firebaseMode && profile?.disabled) {
+    return (
+      <DisabledAccountView
+        email={profile.email ?? user?.email}
+        theme={theme}
+        onToggleTheme={() => selectTheme(theme === 'dark' ? 'light' : 'dark')}
+        onSignOut={signOutUser}
+      />
+    )
+  }
 
   return <div className={`app-shell${menu ? ' sidebar-open' : ''}`}>
     <aside id="app-sidebar" className={`sidebar${menu ? ' open' : ''}${firebaseMode && isAdmin ? ' is-admin' : ''}`} inert={!menu}>
@@ -807,6 +870,7 @@ export default function DashboardApp() {
               isFirebaseMode={firebaseMode}
               onSignIn={signInWithGoogle}
               onAddCity={addCity}
+              getIdToken={firebaseMode ? getIdToken : undefined}
               onRemoveCity={
                 firebaseMode && user
                   ? async area => {

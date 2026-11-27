@@ -12,7 +12,7 @@ service cloud.firestore {
     //
     // 1. Collection: globalCities
     //    Document ID: {cityId} (string slug/identifier, e.g. "lahore", "karachi")
-    //    Read: Public (guests and signed-in users)
+    //    Read: Authenticated active users (isActiveUser())
     //    Write: Admin only (request.auth.token.role == 'admin') or Admin SDK
     //    Fields:
     //      - name: string (required, 1..120 chars)
@@ -39,7 +39,7 @@ service cloud.firestore {
     //
     // 2. Subcollection: globalCities/{cityId}/readings
     //    Document ID: {readingId}
-    //    Read: Public (guests and signed-in users)
+    //    Read: Authenticated active users (isActiveUser())
     //    Write: Admin only or Admin SDK (server ingestion)
     //    Fields:
     //      - timestamp / recordedAt: timestamp | ISO string (required, <= 64 chars if string)
@@ -54,7 +54,7 @@ service cloud.firestore {
     //
     // 3. Collection: systemAdvisories
     //    Document ID: {advisoryId}
-    //    Read: Public
+    //    Read: Authenticated active users (isActiveUser())
     //    Write: Admin only
     //    Fields:
     //      - title: string (optional if message/body present, 1..160 chars)
@@ -69,7 +69,7 @@ service cloud.firestore {
     //
     // 4. Collection: systemRules
     //    Document ID: {ruleId}
-    //    Read: Public
+    //    Read: Authenticated active users (isActiveUser())
     //    Write: Admin only
     //    Fields:
     //      - cityId: string (required, 1..100 chars)
@@ -148,7 +148,9 @@ service cloud.firestore {
 
     // Check if the authenticated user has the verified admin custom claim
     function isAdmin() {
-      return request.auth != null && request.auth.token.role == 'admin';
+      return request.auth != null &&
+             'role' in request.auth.token &&
+             request.auth.token.role == 'admin';
     }
 
     // Check if the authenticated user owns the path identified by uid
@@ -183,8 +185,17 @@ service cloud.firestore {
       return !('disabled' in userData) || userData.disabled == false;
     }
 
-    // Verify the caller's user document exists and is not disabled
+    // Verify the caller is an authenticated, non-disabled Firebase user
+    // (permits reads during the brief sign-in window before /api/auth/bootstrap creates users/{uid})
     function isActiveUser() {
+      return isAuthenticated() &&
+             (!('disabled' in request.auth.token) || request.auth.token.disabled == false) &&
+             (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+              isNotDisabledUserDoc(getUserData(request.auth.uid)));
+    }
+
+    // Verify the caller has an existing, non-disabled user profile document
+    function isBootstrappedActiveUser() {
       return isAuthenticated() &&
              (!('disabled' in request.auth.token) || request.auth.token.disabled == false) &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
@@ -451,9 +462,9 @@ service cloud.firestore {
     // Collection Rules
     // ===============================================================
 
-    // 1. Global monitored cities (publicly readable, admin-writable)
+    // 1. Global monitored cities (authenticated active-user readable, admin-writable)
     match /globalCities/{cityId} {
-      allow read: if true;
+      allow read: if isActiveUser();
       allow create: if isAdmin() && isValidGlobalCity(request.resource.data, cityId);
       allow update: if isAdmin() &&
                        isValidGlobalCity(request.resource.data, cityId) &&
@@ -462,9 +473,9 @@ service cloud.firestore {
                          request.resource.data.createdAt == resource.data.createdAt));
       allow delete: if isAdmin();
 
-      // 2. City air quality readings (publicly readable, admin / Admin SDK writable)
+      // 2. City air quality readings (authenticated active-user readable, admin / Admin SDK writable)
       match /readings/{readingId} {
-        allow read: if true;
+        allow read: if isActiveUser();
         allow create: if isAdmin() && isValidReading(request.resource.data, cityId);
         allow update: if isAdmin() &&
                          isValidReading(request.resource.data, cityId) &&
@@ -475,9 +486,9 @@ service cloud.firestore {
       }
     }
 
-    // 3. System health advisories (publicly readable, admin-writable)
+    // 3. System health advisories (authenticated active-user readable, admin-writable)
     match /systemAdvisories/{advisoryId} {
-      allow read: if true;
+      allow read: if isActiveUser();
       allow create: if isAdmin() && isValidSystemAdvisory(request.resource.data);
       allow update: if isAdmin() &&
                        isValidSystemAdvisory(request.resource.data) &&
@@ -487,9 +498,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // 4. Shared system alert rules (publicly readable, admin-writable)
+    // 4. Shared system alert rules (authenticated active-user readable, admin-writable)
     match /systemRules/{ruleId} {
-      allow read: if true;
+      allow read: if isActiveUser();
       allow create: if isAdmin() && isValidSystemRule(request.resource.data);
       allow update: if isAdmin() &&
                        isValidSystemRule(request.resource.data) &&
@@ -513,21 +524,21 @@ service cloud.firestore {
       match /watchlist/{cityId} {
         allow read: if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) &&
-                         isActiveUser() &&
+                         isBootstrappedActiveUser() &&
                          isValidWatchlistItem(request.resource.data, cityId) &&
                          isRecentOrValidClockSkew(request.resource.data.addedAt);
         allow update: if isOwner(uid) &&
-                         isActiveUser() &&
+                         isBootstrappedActiveUser() &&
                          isValidWatchlistItem(request.resource.data, cityId) &&
                          areImmutableFieldsUnchanged(['cityId', 'addedAt']);
-        allow delete: if isOwner(uid) && isActiveUser();
+        allow delete: if isOwner(uid) && isBootstrappedActiveUser();
       }
 
       // 7. User personal alert rules (owner or admin read; active owner create/update/delete; server eval state protected)
       match /alertRules/{ruleId} {
         allow read: if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) &&
-                         isActiveUser() &&
+                         isBootstrappedActiveUser() &&
                          hasOnlyAllowedFields([
                            'cityId', 'cityName', 'aqiThreshold', 'enabled', 'emailNotify',
                            'aboveThreshold', 'createdAt', 'updatedAt'
@@ -538,7 +549,7 @@ service cloud.firestore {
                          (!('createdAt' in request.resource.data) ||
                           isRecentOrValidClockSkew(request.resource.data.createdAt));
         allow update: if isOwner(uid) &&
-                         isActiveUser() &&
+                         isBootstrappedActiveUser() &&
                          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                            'cityId', 'cityName', 'aqiThreshold', 'enabled', 'emailNotify',
                            'aboveThreshold', 'updatedAt'
@@ -548,7 +559,7 @@ service cloud.firestore {
                           ('createdAt' in request.resource.data &&
                            request.resource.data.createdAt == resource.data.createdAt)) &&
                          isValidAlertRuleAboveThresholdUpdate();
-        allow delete: if isOwner(uid) && isActiveUser();
+        allow delete: if isOwner(uid) && isBootstrappedActiveUser();
       }
 
       // 8. User smog alerts (owner or admin read; server-created; active owner may acknowledge Active -> Acknowledged only)
@@ -556,7 +567,7 @@ service cloud.firestore {
         allow read: if isOwner(uid) || isAdmin();
         allow create: if false;
         allow update: if isOwner(uid) &&
-                         isActiveUser() &&
+                         isBootstrappedActiveUser() &&
                          isValidAlertAcknowledgement();
         allow delete: if false;
       }

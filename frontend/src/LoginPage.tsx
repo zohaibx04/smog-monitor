@@ -78,6 +78,13 @@ export function DisabledAccountView({
   return (
     <div className="login-page">
       <header className="login-topbar">
+        <div className="login-mobile-brand">
+          <img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" />
+          <div>
+            <strong>Smog Monitor</strong>
+            <span>Real-time air quality &amp; alerts</span>
+          </div>
+        </div>
         <button
           type="button"
           className="btn secondary login-theme-btn"
@@ -223,6 +230,13 @@ export default function LoginPage({
   return (
     <div className="login-page">
       <header className="login-topbar">
+        <div className="login-mobile-brand">
+          <img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" />
+          <div>
+            <strong>Smog Monitor</strong>
+            <span>Real-time air quality &amp; alerts</span>
+          </div>
+        </div>
         <button
           type="button"
           className="btn secondary login-theme-btn"

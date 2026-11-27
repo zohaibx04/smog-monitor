@@ -1778,6 +1778,38 @@ td.num-col,
   font-size: 12px;
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.login-mobile-brand {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.login-mobile-brand .brand-icon-img {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.login-mobile-brand strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.login-mobile-brand span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 :root[data-theme="light"] .login-theme-btn {
@@ -2205,16 +2237,40 @@ td.num-col,
 }
 
 @media (max-width: 900px) {
+  .login-page {
+    min-height: 100dvh;
+    overflow-x: clip;
+    overflow-y: auto;
+  }
+  .login-topbar {
+    height: auto;
+    min-height: 56px;
+    padding: 12px 16px;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .login-mobile-brand {
+    display: inline-flex;
+  }
   .login-split-wrap {
-    padding: 12px 20px 32px;
+    padding: 8px 16px 28px;
     align-items: flex-start;
   }
   .login-split {
     grid-template-columns: 1fr;
-    gap: 28px;
+    gap: 24px;
+  }
+  .login-form-col {
+    order: -1;
+    width: 100%;
   }
   .login-info {
+    order: 1;
     gap: 14px;
+  }
+  .login-info-brand,
+  .login-center .login-brand {
+    display: none;
   }
   .login-aqi-bars {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2222,17 +2278,43 @@ td.num-col,
 }
 
 @media (max-width: 680px) {
-  .login-topbar {
-    padding: 0 16px;
-  }
   .login-center,
   .login-split-wrap {
-    padding: 8px 16px 28px;
+    padding: 4px 16px 24px;
+  }
+  .login-split {
+    gap: 20px;
   }
   .login-glass-card {
-    padding: 22px 20px;
+    padding: 20px;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
   }
-  .login-aqi-bars {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .login-field input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .login-primary-btn,
+  .login-google-btn {
+    min-height: 44px;
+    height: 44px;
+  }
+  .login-remember-label,
+  .login-link-btn {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .login-info h1,
+  .login-info-desc,
+  .login-aqi-strip {
+    display: none;
+  }
+  .login-info-list {
+    margin-top: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    gap: 12px;
   }
 }

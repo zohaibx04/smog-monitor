@@ -1,7 +1,34 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { Icon } from './App'
+import { Icon, type IconName } from './App'
 
 type AuthMode = 'signin' | 'signup'
+
+const HIGHLIGHTS: { icon: IconName; title: string; detail: string }[] = [
+  {
+    icon: 'activity',
+    title: 'Live AQI, PM2.5, PM10 & extended gases',
+    detail: 'Track hourly air quality and meteorological smog-trap drivers',
+  },
+  {
+    icon: 'globe',
+    title: '72-hour forecast & best outdoor window',
+    detail: 'Plan outdoor activity ahead of peak pollution hours',
+  },
+  {
+    icon: 'bell',
+    title: 'Personalized threshold & email alerts',
+    detail: 'Automatic alerts calibrated to your cities and health profile',
+  },
+]
+
+const AQI_STRIP: { label: string; range: string; tone: string }[] = [
+  { label: 'Good', range: '0–50', tone: 'var(--aqi-good)' },
+  { label: 'Moderate', range: '51–100', tone: 'var(--aqi-moderate)' },
+  { label: 'Sensitive', range: '101–150', tone: 'var(--aqi-sensitive)' },
+  { label: 'Unhealthy', range: '151–200', tone: 'var(--aqi-unhealthy)' },
+  { label: 'Very unhealthy', range: '201–300', tone: 'var(--aqi-very-unhealthy)' },
+  { label: 'Hazardous', range: '301+', tone: 'var(--aqi-hazardous)' },
+]
 
 function GoogleMark() {
   return (
@@ -207,148 +234,188 @@ export default function LoginPage({
         </button>
       </header>
 
-      <main className="login-center">
-        <div className="login-brand">
-          <img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" />
-          <strong>Smog Monitor</strong>
-        </div>
+      <main className="login-split-wrap">
+        <div className="login-split">
+          <section className="login-info" aria-label="About Smog Monitor">
+            <div className="login-info-brand">
+              <img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" />
+              <strong>Smog Monitor</strong>
+            </div>
 
-        <section className="login-glass-card" aria-label={mode === 'signin' ? 'Sign in' : 'Create account'}>
-          <div className="login-card-head">
-            <h1>{mode === 'signin' ? 'Welcome back' : 'Create an account'}</h1>
-            <p className="login-card-subtitle">
-              {mode === 'signin'
-                ? 'Sign in to pick up where you left off.'
-                : 'Sign up to monitor your cities and threshold alerts.'}
+            <h1>Proactive Real-Time Smog Level Monitoring &amp; Alert System</h1>
+
+            <p className="login-info-desc">
+              Monitor real-time US AQI, PM2.5, PM10, and extended smog gases across 195+ global cities with Open-Meteo and Copernicus CAMS telemetry. Review 72-hour hourly forecasts, smog-trap weather drivers, and automated email alerts tailored to your health profile.
             </p>
-          </div>
 
-          {visibleError && (
-            <div className="notice error-notice login-card-notice" role="alert">
-              <Icon name="warning" size={16} />
-              <span>{visibleError}</span>
+            <ul className="login-info-list">
+              {HIGHLIGHTS.map(item => (
+                <li key={item.title} className="login-info-item">
+                  <Icon name={item.icon} size={16} />
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="login-aqi-strip" aria-label="US EPA Air Quality Index scale">
+              <div className="login-aqi-strip-head">
+                <span>US EPA AQI Scale</span>
+                <span className="mono">0 – 301+</span>
+              </div>
+              <div className="login-aqi-bars" role="list">
+                {AQI_STRIP.map(band => (
+                  <div key={band.label} className="login-aqi-seg" role="listitem">
+                    <span className="login-aqi-bar" style={{ backgroundColor: band.tone }} aria-hidden="true" />
+                    <span className="login-aqi-seg-label">{band.label}</span>
+                    <span className="login-aqi-seg-range mono">{band.range}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+          </section>
 
-          {visibleNotice && (
-            <div className="notice login-card-notice login-reset-notice" role="status">
-              <Icon name="check" size={16} />
-              <span>{visibleNotice}</span>
-            </div>
-          )}
+          <section className="login-form-col" aria-label={mode === 'signin' ? 'Sign in' : 'Create account'}>
+            <div className="login-glass-card">
+              <div className="login-card-head">
+                <h2>{mode === 'signin' ? 'Welcome back' : 'Create an account'}</h2>
+                <p className="login-card-subtitle">
+                  {mode === 'signin'
+                    ? 'Sign in to pick up where you left off.'
+                    : 'Sign up to monitor your cities and threshold alerts.'}
+                </p>
+              </div>
 
-          <form className="login-form" onSubmit={(e) => void handleSubmit(e)}>
-            {mode === 'signup' && (
-              <label className="field login-field">
-                <span>Full name</span>
-                <input
-                  type="text"
-                  autoComplete="name"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={80}
-                  required
-                />
-              </label>
-            )}
+              {visibleError && (
+                <div className="notice error-notice login-card-notice" role="alert">
+                  <Icon name="warning" size={16} />
+                  <span>{visibleError}</span>
+                </div>
+              )}
 
-            <label className="field login-field">
-              <span>Email address</span>
-              <input
-                ref={emailInputRef}
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (localError) setLocalError('')
-                }}
-                required
-              />
-            </label>
+              {visibleNotice && (
+                <div className="notice login-card-notice login-reset-notice" role="status">
+                  <Icon name="check" size={16} />
+                  <span>{visibleNotice}</span>
+                </div>
+              )}
 
-            <label className="field login-field">
-              <span>Password</span>
-              <input
-                type="password"
-                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
-                required
-              />
-            </label>
+              <form className="login-form" onSubmit={(e) => void handleSubmit(e)}>
+                {mode === 'signup' && (
+                  <label className="field login-field">
+                    <span>Full name</span>
+                    <input
+                      type="text"
+                      autoComplete="name"
+                      placeholder="Your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={80}
+                      required
+                    />
+                  </label>
+                )}
 
-            <div className="login-options-row">
-              <label className="checkbox-label login-remember-label">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
-                Remember me
-              </label>
+                <label className="field login-field">
+                  <span>Email address</span>
+                  <input
+                    ref={emailInputRef}
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (localError) setLocalError('')
+                    }}
+                    required
+                  />
+                </label>
 
-              {mode === 'signin' && (
+                <label className="field login-field">
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    minLength={6}
+                    required
+                  />
+                </label>
+
+                <div className="login-options-row">
+                  <label className="checkbox-label login-remember-label">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                    Remember me
+                  </label>
+
+                  {mode === 'signin' && (
+                    <button
+                      type="button"
+                      className="login-link-btn"
+                      disabled={busy}
+                      onClick={() => void handleForgotPassword()}
+                    >
+                      {resetBusy ? 'Sending…' : 'Forgot?'}
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn login-primary-btn"
+                  disabled={busy}
+                >
+                  {submitting
+                    ? mode === 'signin'
+                      ? 'Signing in…'
+                      : 'Creating account…'
+                    : mode === 'signin'
+                      ? 'Sign in'
+                      : 'Create account'}
+                </button>
+              </form>
+
+              <div className="login-divider" aria-hidden="true">
+                <span>or</span>
+              </div>
+
+              <button
+                type="button"
+                className="btn login-google-btn"
+                disabled={busy}
+                onClick={() => void handleGoogleSignIn()}
+              >
+                <GoogleMark />
+                <span>{googleBusy ? 'Connecting to Google…' : 'Continue with Google'}</span>
+              </button>
+
+              <p className="login-switch-row">
+                {mode === 'signin' ? 'New to Smog Monitor?' : 'Already have an account?'}{' '}
                 <button
                   type="button"
                   className="login-link-btn"
                   disabled={busy}
-                  onClick={() => void handleForgotPassword()}
+                  onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
                 >
-                  {resetBusy ? 'Sending…' : 'Forgot?'}
+                  {mode === 'signin' ? 'Create an account' : 'Sign in'}
                 </button>
-              )}
+              </p>
             </div>
 
-            <button
-              type="submit"
-              className="btn login-primary-btn"
-              disabled={busy}
-            >
-              {submitting
-                ? mode === 'signin'
-                  ? 'Signing in…'
-                  : 'Creating account…'
-                : mode === 'signin'
-                  ? 'Sign in'
-                  : 'Create account'}
-            </button>
-          </form>
-
-          <div className="login-divider" aria-hidden="true">
-            <span>or</span>
-          </div>
-
-          <button
-            type="button"
-            className="btn login-google-btn"
-            disabled={busy}
-            onClick={() => void handleGoogleSignIn()}
-          >
-            <GoogleMark />
-            <span>{googleBusy ? 'Connecting to Google…' : 'Continue with Google'}</span>
-          </button>
-
-          <p className="login-switch-row">
-            {mode === 'signin' ? 'New to Smog Monitor?' : 'Already have an account?'}{' '}
-            <button
-              type="button"
-              className="login-link-btn"
-              disabled={busy}
-              onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
-            >
-              {mode === 'signin' ? 'Create an account' : 'Sign in'}
-            </button>
-          </p>
-        </section>
-
-        <p className="login-caption">
-          Real-time US AQI, 72-hour smog forecasts, and threshold email alerts.
-        </p>
+            <p className="login-caption">
+              Real-time US AQI, 72-hour smog forecasts, and threshold email alerts.
+            </p>
+          </section>
+        </div>
       </main>
     </div>
   )

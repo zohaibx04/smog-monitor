@@ -6,7 +6,19 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth'
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  setPersistence,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+  type User,
+} from 'firebase/auth'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import type { HealthProfile } from '../api'
 import { auth, db, googleProvider, isFirebaseConfigured } from './config'
@@ -40,6 +52,30 @@ function normalizeHealthProfile(value: unknown): HealthProfile {
   return 'general'
 }
 
+function mapAuthError(err: unknown, fallback: string): string {
+  const code = (err as { code?: string })?.code
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Invalid email address or password'
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists'
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters'
+    case 'auth/operation-not-allowed':
+      return 'Email and password sign-in is not enabled for this project'
+    case 'auth/invalid-email':
+      return 'Enter a valid email address'
+    case 'auth/user-disabled':
+      return 'This account has been disabled by an administrator'
+    case 'auth/too-many-requests':
+      return 'Too many attempts — wait a moment and try again'
+    default:
+      return err instanceof Error ? err.message : fallback
+  }
+}
+
 interface AuthContextValue {
   user: User | null
   profile: UserProfile | null
@@ -48,6 +84,14 @@ interface AuthContextValue {
   authError: string | null
   isFirebaseConfigured: boolean
   signInWithGoogle: () => Promise<void>
+  signInWithEmail: (email: string, password: string, rememberMe: boolean) => Promise<void>
+  signUpWithEmail: (
+    name: string,
+    email: string,
+    password: string,
+    rememberMe: boolean,
+  ) => Promise<void>
+  resetPassword: (email: string) => Promise<void>
   signOutUser: () => Promise<void>
   getIdToken: () => Promise<string | null>
   updateProfilePrefs: (prefs: ProfilePrefsPatch) => Promise<void>
@@ -191,7 +235,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
         return
       }
-      setAuthError(err instanceof Error ? err.message : 'Google sign-in failed')
+      setAuthError(mapAuthError(err, 'Google sign-in failed'))
+    }
+  }, [])
+
+  const signInWithEmail = useCallback(
+    async (email: string, password: string, rememberMe: boolean) => {
+      if (!auth) {
+        const msg = 'Firebase authentication is not configured'
+        setAuthError(msg)
+        throw new Error(msg)
+      }
+      setAuthError(null)
+      try {
+        await setPersistence(
+          auth,
+          rememberMe ? browserLocalPersistence : browserSessionPersistence,
+        )
+        await signInWithEmailAndPassword(auth, email.trim(), password)
+      } catch (err: unknown) {
+        const msg = mapAuthError(err, 'Email sign-in failed')
+        setAuthError(msg)
+        throw new Error(msg)
+      }
+    },
+    [],
+  )
+
+  const signUpWithEmail = useCallback(
+    async (name: string, email: string, password: string, rememberMe: boolean) => {
+      if (!auth) {
+        const msg = 'Firebase authentication is not configured'
+        setAuthError(msg)
+        throw new Error(msg)
+      }
+      setAuthError(null)
+      try {
+        await setPersistence(
+          auth,
+          rememberMe ? browserLocalPersistence : browserSessionPersistence,
+        )
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
+        const trimmedName = name.trim()
+        if (trimmedName) {
+          await updateProfile(cred.user, { displayName: trimmedName })
+          setProfile((prev) => (prev ? { ...prev, displayName: trimmedName } : prev))
+        }
+      } catch (err: unknown) {
+        const msg = mapAuthError(err, 'Account creation failed')
+        setAuthError(msg)
+        throw new Error(msg)
+      }
+    },
+    [],
+  )
+
+  const resetPassword = useCallback(async (email: string) => {
+    if (!auth) {
+      const msg = 'Firebase authentication is not configured'
+      setAuthError(msg)
+      throw new Error(msg)
+    }
+    const trimmed = email.trim()
+    if (!trimmed) {
+      const msg = 'Enter your email address first'
+      setAuthError(msg)
+      throw new Error(msg)
+    }
+    setAuthError(null)
+    try {
+      await sendPasswordResetEmail(auth, trimmed)
+    } catch (err: unknown) {
+      const msg = mapAuthError(err, 'Unable to send password reset email')
+      setAuthError(msg)
+      throw new Error(msg)
     }
   }, [])
 
@@ -236,6 +353,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authError,
         isFirebaseConfigured,
         signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
+        resetPassword,
         signOutUser,
         getIdToken,
         updateProfilePrefs,

@@ -132,6 +132,9 @@ export default function DashboardApp() {
     authError,
     isFirebaseConfigured: firebaseMode,
     signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    resetPassword,
     signOutUser,
     getIdToken,
     updateProfilePrefs,
@@ -670,7 +673,10 @@ export default function DashboardApp() {
       <LoginPage
         theme={theme}
         onToggleTheme={() => selectTheme(theme === 'dark' ? 'light' : 'dark')}
-        onSignIn={signInWithGoogle}
+        onSignInWithGoogle={signInWithGoogle}
+        onSignInWithEmail={signInWithEmail}
+        onSignUpWithEmail={signUpWithEmail}
+        onResetPassword={resetPassword}
         authError={authError}
         loading={authLoading}
       />

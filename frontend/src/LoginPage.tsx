@@ -1,20 +1,7 @@
-import { useState } from 'react'
-import { Icon, type IconName } from './App'
+import { useRef, useState, type FormEvent } from 'react'
+import { Icon } from './App'
 
-const AQI_SCALE: { label: string; range: string; tone: string }[] = [
-  { label: 'Good', range: '0–50', tone: 'var(--aqi-good)' },
-  { label: 'Moderate', range: '51–100', tone: 'var(--aqi-moderate)' },
-  { label: 'Sensitive groups', range: '101–150', tone: 'var(--aqi-sensitive)' },
-  { label: 'Unhealthy', range: '151–200', tone: 'var(--aqi-unhealthy)' },
-  { label: 'Very unhealthy', range: '201–300', tone: 'var(--aqi-very-unhealthy)' },
-  { label: 'Hazardous', range: '301+', tone: 'var(--aqi-hazardous)' },
-]
-
-const CAPABILITIES: { icon: IconName; label: string }[] = [
-  { icon: 'activity', label: 'Real-time US AQI, PM2.5 & PM10' },
-  { icon: 'clock', label: '72-hour forecast & best outdoor window' },
-  { icon: 'bell', label: 'Proactive threshold & email alerts' },
-]
+type AuthMode = 'signin' | 'signup'
 
 function GoogleMark() {
   return (
@@ -64,10 +51,6 @@ export function DisabledAccountView({
   return (
     <div className="login-page">
       <header className="login-topbar">
-        <div className="login-brand">
-          <img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" />
-          <strong>Smog Monitor</strong>
-        </div>
         <button
           type="button"
           className="btn secondary login-theme-btn"
@@ -79,21 +62,26 @@ export function DisabledAccountView({
         </button>
       </header>
 
-      <div className="login-disabled-wrap">
-        <section className="card login-disabled-card" role="alert">
+      <main className="login-center">
+        <div className="login-brand">
+          <img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" />
+          <strong>Smog Monitor</strong>
+        </div>
+
+        <section className="login-glass-card login-disabled-card" role="alert">
           <div className="login-disabled-head">
             <Icon name="shield" size={16} />
             <h1>Account disabled</h1>
           </div>
-          <p className="login-subtitle">
+          <p className="login-card-subtitle">
             {email
               ? `Access for ${email} has been disabled by an administrator.`
               : 'Your account has been disabled by an administrator.'}{' '}
-            Sign out to switch to another Google account.
+            Sign out to switch to another account.
           </p>
           <button
             type="button"
-            className="btn primary"
+            className="btn login-primary-btn"
             disabled={signingOut}
             onClick={() => void handleSignOut()}
           >
@@ -101,7 +89,7 @@ export function DisabledAccountView({
             <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
           </button>
         </section>
-      </div>
+      </main>
     </div>
   )
 }
@@ -109,24 +97,99 @@ export function DisabledAccountView({
 export default function LoginPage({
   theme,
   onToggleTheme,
-  onSignIn,
+  onSignInWithGoogle,
+  onSignInWithEmail,
+  onSignUpWithEmail,
+  onResetPassword,
   authError,
   loading = false,
 }: {
   theme: 'dark' | 'light'
   onToggleTheme: () => void
-  onSignIn: () => Promise<void> | void
+  onSignInWithGoogle: () => Promise<void> | void
+  onSignInWithEmail: (email: string, password: string, rememberMe: boolean) => Promise<void> | void
+  onSignUpWithEmail: (name: string, email: string, password: string, rememberMe: boolean) => Promise<void> | void
+  onResetPassword: (email: string) => Promise<void> | void
   authError?: string | null
   loading?: boolean
 }) {
-  const [signingIn, setSigningIn] = useState(false)
+  const [mode, setMode] = useState<AuthMode>('signin')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [googleBusy, setGoogleBusy] = useState(false)
+  const [resetBusy, setResetBusy] = useState(false)
+  const [localError, setLocalError] = useState('')
+  const [resetNotice, setResetNotice] = useState('')
+  const emailInputRef = useRef<HTMLInputElement>(null)
+
+  const busy = loading || submitting || googleBusy || resetBusy
+  const visibleError = localError || authError || ''
+  const visibleNotice = !visibleError ? resetNotice : ''
+
+  function switchMode(next: AuthMode) {
+    setMode(next)
+    setLocalError('')
+    setResetNotice('')
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const cleanEmail = email.trim()
+    if (!cleanEmail) {
+      setLocalError('Enter your email address')
+      emailInputRef.current?.focus()
+      return
+    }
+    setLocalError('')
+    setResetNotice('')
+    setSubmitting(true)
+    try {
+      if (mode === 'signin') {
+        await onSignInWithEmail(cleanEmail, password, rememberMe)
+      } else {
+        await onSignUpWithEmail(name.trim(), cleanEmail, password, rememberMe)
+      }
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Authentication failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   async function handleGoogleSignIn() {
-    setSigningIn(true)
+    setLocalError('')
+    setResetNotice('')
+    setGoogleBusy(true)
     try {
-      await onSignIn()
+      await onSignInWithGoogle()
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Google sign-in failed')
     } finally {
-      setSigningIn(false)
+      setGoogleBusy(false)
+    }
+  }
+
+  async function handleForgotPassword() {
+    const cleanEmail = email.trim()
+    if (!cleanEmail) {
+      setResetNotice('')
+      setLocalError('Enter your email address first to reset your password')
+      emailInputRef.current?.focus()
+      return
+    }
+    setLocalError('')
+    setResetNotice('')
+    setResetBusy(true)
+    try {
+      await onResetPassword(cleanEmail)
+      setResetNotice('Password reset email sent')
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Unable to send password reset email')
+    } finally {
+      setResetBusy(false)
     }
   }
 
@@ -144,66 +207,148 @@ export default function LoginPage({
         </button>
       </header>
 
-      <main className="login-grid">
-        <section className="login-panel" aria-label="Sign in">
-          <div className="login-wordmark">
-            <img src="/app-icon.svg?v=3" alt="" className="brand-icon-img" />
-            <span>Smog Monitor</span>
-          </div>
-          <h1>Proactive air quality monitoring and alerts</h1>
-          <p className="login-subtitle">
-            Monitor real-time US AQI, PM2.5, PM10, 72-hour forecasts, and personalized threshold alerts across your saved cities.
-          </p>
+      <main className="login-center">
+        <div className="login-brand">
+          <img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" />
+          <strong>Smog Monitor</strong>
+        </div>
 
-          {authError && (
-            <div className="notice error-notice login-error" role="alert">
+        <section className="login-glass-card" aria-label={mode === 'signin' ? 'Sign in' : 'Create account'}>
+          <div className="login-card-head">
+            <h1>{mode === 'signin' ? 'Welcome back' : 'Create an account'}</h1>
+            <p className="login-card-subtitle">
+              {mode === 'signin'
+                ? 'Sign in to pick up where you left off.'
+                : 'Sign up to monitor your cities and threshold alerts.'}
+            </p>
+          </div>
+
+          {visibleError && (
+            <div className="notice error-notice login-card-notice" role="alert">
               <Icon name="warning" size={16} />
-              <span>{authError}</span>
+              <span>{visibleError}</span>
             </div>
           )}
 
-          <div className="login-actions">
+          {visibleNotice && (
+            <div className="notice login-card-notice login-reset-notice" role="status">
+              <Icon name="check" size={16} />
+              <span>{visibleNotice}</span>
+            </div>
+          )}
+
+          <form className="login-form" onSubmit={(e) => void handleSubmit(e)}>
+            {mode === 'signup' && (
+              <label className="field login-field">
+                <span>Full name</span>
+                <input
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={80}
+                  required
+                />
+              </label>
+            )}
+
+            <label className="field login-field">
+              <span>Email address</span>
+              <input
+                ref={emailInputRef}
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (localError) setLocalError('')
+                }}
+                required
+              />
+            </label>
+
+            <label className="field login-field">
+              <span>Password</span>
+              <input
+                type="password"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
+                required
+              />
+            </label>
+
+            <div className="login-options-row">
+              <label className="checkbox-label login-remember-label">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Remember me
+              </label>
+
+              {mode === 'signin' && (
+                <button
+                  type="button"
+                  className="login-link-btn"
+                  disabled={busy}
+                  onClick={() => void handleForgotPassword()}
+                >
+                  {resetBusy ? 'Sending…' : 'Forgot?'}
+                </button>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="btn login-primary-btn"
+              disabled={busy}
+            >
+              {submitting
+                ? mode === 'signin'
+                  ? 'Signing in…'
+                  : 'Creating account…'
+                : mode === 'signin'
+                  ? 'Sign in'
+                  : 'Create account'}
+            </button>
+          </form>
+
+          <div className="login-divider" aria-hidden="true">
+            <span>or</span>
+          </div>
+
+          <button
+            type="button"
+            className="btn login-google-btn"
+            disabled={busy}
+            onClick={() => void handleGoogleSignIn()}
+          >
+            <GoogleMark />
+            <span>{googleBusy ? 'Connecting to Google…' : 'Continue with Google'}</span>
+          </button>
+
+          <p className="login-switch-row">
+            {mode === 'signin' ? 'New to Smog Monitor?' : 'Already have an account?'}{' '}
             <button
               type="button"
-              className="btn primary login-google-btn"
-              disabled={signingIn || loading}
-              onClick={() => void handleGoogleSignIn()}
+              className="login-link-btn"
+              disabled={busy}
+              onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
             >
-              <GoogleMark />
-              <span>{signingIn ? 'Signing in…' : 'Continue with Google'}</span>
+              {mode === 'signin' ? 'Create an account' : 'Sign in'}
             </button>
-            <p className="login-note">Sign in with your Google account to continue</p>
-          </div>
+          </p>
         </section>
 
-        <aside className="card login-preview-card" aria-label="Telemetry overview">
-          <div className="login-preview-head">
-            <div>
-              <h2>US EPA Air Quality Index</h2>
-              <p>Six-band health reference scale</p>
-            </div>
-            <span className="login-preview-tag mono">US AQI</span>
-          </div>
-
-          <ul className="login-scale-list">
-            {AQI_SCALE.map(band => (
-              <li key={band.label} className="login-scale-row">
-                <span className="login-scale-swatch" style={{ backgroundColor: band.tone }} aria-hidden="true" />
-                <span className="login-scale-label">{band.label}</span>
-                <span className="login-scale-range mono">{band.range}</span>
-              </li>
-            ))}
-          </ul>
-
-          <ul className="login-capabilities">
-            {CAPABILITIES.map(item => (
-              <li key={item.label} className="login-capability-row">
-                <Icon name={item.icon} size={16} />
-                <span>{item.label}</span>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <p className="login-caption">
+          Real-time US AQI, 72-hour smog forecasts, and threshold email alerts.
+        </p>
       </main>
     </div>
   )

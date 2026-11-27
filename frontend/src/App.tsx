@@ -15,11 +15,7 @@ export type Page =
   | "add-location"
   | "alerts"
   | "admin"
-  | "admin-overview"
-  | "admin-catalog"
-  | "admin-users"
-  | "admin-advisories"
-  | "admin-health"
+  | "admin-console"
 export type NavGroup = "Overview" | "Pollutants" | "Network" | "Admin" | "System"
 export type IconName =
   | "grid"
@@ -300,10 +296,6 @@ export const navItems: { id: Page; label: string; icon: IconName; group: NavGrou
   { id: "areas", label: "Compare locations", icon: "pin", group: "Network" },
   { id: "add-location", label: "My locations", icon: "plus", group: "Network" },
   { id: "alerts", label: "Smog alerts", icon: "bell", group: "Network" },
-  { id: "admin-overview", label: "Admin overview", icon: "shield", group: "Admin" },
-  { id: "admin-catalog", label: "Global catalog", icon: "database", group: "Admin" },
-  { id: "admin-users", label: "Users & roles", icon: "user", group: "Admin" },
-  { id: "admin-advisories", label: "Advisories & rules", icon: "mail", group: "Admin" },
-  { id: "admin-health", label: "Network health", icon: "sliders", group: "Admin" },
+  { id: "admin-console", label: "Admin", icon: "shield", group: "Admin" },
   { id: "admin", label: "Administration", icon: "settings", group: "System" },
 ]

@@ -1496,16 +1496,6 @@ td.num-col,
     overflow: hidden;
     padding: 12px;
   }
-  .sidebar.is-admin {
-    overflow-y: auto;
-    scrollbar-width: thin;
-  }
-  .sidebar.is-admin .nav-group-label {
-    margin: 8px 0 4px 8px;
-  }
-  .sidebar.is-admin nav button {
-    height: 28px;
-  }
   .brand {
     padding: 4px 8px 12px;
   }

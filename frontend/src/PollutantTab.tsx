@@ -145,6 +145,7 @@ export default function PollutantTab({
   history,
   historyLoading,
   hours,
+  threshold,
   onHoursChange,
   onExport,
   onSelectArea: _onSelectArea,
@@ -155,6 +156,7 @@ export default function PollutantTab({
   history: Reading[]
   historyLoading: boolean
   hours: number
+  threshold?: number | null
   onHoursChange: (hours: number) => void
   onExport: () => void
   onSelectArea: (id: number) => void
@@ -292,7 +294,7 @@ export default function PollutantTab({
               <p>Loading stored readings…</p>
             </div>
           ) : (
-            <HistoryChart readings={history} pollutant={pollutant} />
+            <HistoryChart readings={history} pollutant={pollutant} threshold={threshold} />
           )}
         </section>
       </div>

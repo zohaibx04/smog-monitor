@@ -28,6 +28,7 @@ export default function SmogOverview({
   preferences: _preferences,
   history,
   historyLoading,
+  threshold,
   mode: _mode,
   navigate: _navigate,
 }: {
@@ -37,6 +38,7 @@ export default function SmogOverview({
   preferences: Preference[]
   history: Reading[]
   historyLoading: boolean
+  threshold?: number | null
   mode: string
   navigate: (page: Page) => void
 }) {
@@ -97,7 +99,7 @@ export default function SmogOverview({
         </div>
         {historyLoading
           ? <div className="empty-state">Loading stored readings</div>
-          : <HistoryChart readings={history} pollutant={overviewPollutant} />}
+          : <HistoryChart readings={history} pollutant={overviewPollutant} threshold={threshold} />}
       </section>
     </div>
   )

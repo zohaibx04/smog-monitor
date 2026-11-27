@@ -1,23 +1,28 @@
-import { useState } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import {
   category,
   type AreaData,
   type ForecastPoint,
   type HealthProfile,
   type ProactiveInsights,
-  type Reading,
 } from './api'
 import { Icon } from './App'
-import HistoryChart from './HistoryChart'
 import SelectDropdown from './SelectDropdown'
-
-type ForecastPollutant = 'aqi' | 'pm25' | 'pm10'
-type Horizon = '24h' | '72h'
 
 interface ProfileConfig {
   label: string
   recommendedThreshold: number
   precautions: [string, string, string]
+}
+
+const AQI_TONE: Record<string, string> = {
+  good: 'var(--aqi-good, #15803d)',
+  moderate: 'var(--aqi-moderate, #eab308)',
+  sensitive: 'var(--aqi-sensitive, #c2410c)',
+  unhealthy: 'var(--aqi-unhealthy, #b91c1c)',
+  'very-unhealthy': 'var(--aqi-very-unhealthy, #7e22ce)',
+  hazardous: 'var(--aqi-hazardous, #881337)',
+  unknown: 'var(--aqi-unknown, #525252)',
 }
 
 const PROFILE_META: Record<HealthProfile, ProfileConfig> = {
@@ -59,6 +64,14 @@ const PROFILE_META: Record<HealthProfile, ProfileConfig> = {
   },
 }
 
+function formatHourShort(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
 function formatTimeRange(startIso: string, endIso: string): string {
   const start = new Date(startIso)
   const end = new Date(Date.parse(endIso) + 3_600_000)
@@ -70,19 +83,22 @@ function formatTimeRange(startIso: string, endIso: string): string {
   return `${start.toLocaleTimeString([], opts)} – ${end.toLocaleTimeString([], opts)}`
 }
 
-function formatAqi(value: number | null | undefined): string {
+function formatNumber(value: number | null | undefined, maxDecimals = 0): string {
   if (value == null) return '—'
-  return new Intl.NumberFormat('en', { maximumFractionDigits: 0 }).format(value)
+  return new Intl.NumberFormat('en', { maximumFractionDigits: maxDecimals }).format(value)
 }
 
 function findBestWindow(points: ForecastPoint[]): {
   label: string
   avgAqi: number
+  startIndex: number
+  endIndex: number
 } | null {
   if (points.length === 0) return null
 
   let bestAvg = Infinity
-  let bestPair: [ForecastPoint, ForecastPoint] | null = null
+  let bestStart = -1
+  let bestEnd = -1
 
   for (let i = 0; i < points.length - 1; i += 1) {
     const a = points[i].aqi
@@ -91,25 +107,35 @@ function findBestWindow(points: ForecastPoint[]): {
     const avg = (a + b) / 2
     if (avg < bestAvg) {
       bestAvg = avg
-      bestPair = [points[i], points[i + 1]]
+      bestStart = i
+      bestEnd = i + 1
     }
   }
 
-  if (bestPair) {
+  if (bestStart >= 0) {
     return {
-      label: formatTimeRange(bestPair[0].timestamp, bestPair[1].timestamp),
+      label: formatTimeRange(points[bestStart].timestamp, points[bestEnd].timestamp),
       avgAqi: bestAvg,
+      startIndex: bestStart,
+      endIndex: bestEnd,
     }
   }
 
-  const single = points
-    .filter((p): p is ForecastPoint & { aqi: number } => p.aqi != null)
-    .sort((a, b) => a.aqi - b.aqi)[0]
+  let bestSingleIdx = -1
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i].aqi
+    if (a == null) continue
+    if (bestSingleIdx < 0 || a < (points[bestSingleIdx].aqi ?? Infinity)) {
+      bestSingleIdx = i
+    }
+  }
 
-  if (!single) return null
+  if (bestSingleIdx < 0) return null
   return {
-    label: formatTimeRange(single.timestamp, single.timestamp),
-    avgAqi: single.aqi,
+    label: formatTimeRange(points[bestSingleIdx].timestamp, points[bestSingleIdx].timestamp),
+    avgAqi: points[bestSingleIdx].aqi!,
+    startIndex: bestSingleIdx,
+    endIndex: bestSingleIdx,
   }
 }
 
@@ -117,21 +143,106 @@ function findPeak24h(points: ForecastPoint[]): {
   aqi: number
   hoursUntil: number
   timestamp: string
+  index: number
 } | null {
-  let peak: (ForecastPoint & { aqi: number }) | null = null
-  for (const pt of points) {
-    if (pt.aqi == null) continue
-    if (!peak || pt.aqi > peak.aqi) {
-      peak = { ...pt, aqi: pt.aqi }
+  let peakIdx = -1
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i].aqi
+    if (a == null) continue
+    if (peakIdx < 0 || a > (points[peakIdx].aqi ?? -1)) {
+      peakIdx = i
     }
   }
-  if (!peak) return null
-  const hoursUntil = Math.max(0, Math.round((Date.parse(peak.timestamp) - Date.now()) / 3_600_000))
+  if (peakIdx < 0) return null
+  const peakPt = points[peakIdx]
+  const hoursUntil = Math.max(0, Math.round((Date.parse(peakPt.timestamp) - Date.now()) / 3_600_000))
   return {
-    aqi: peak.aqi,
+    aqi: peakPt.aqi!,
     hoursUntil,
-    timestamp: peak.timestamp,
+    timestamp: peakPt.timestamp,
+    index: peakIdx,
   }
+}
+
+interface DaySummary {
+  key: string
+  dayLabel: string
+  dateLabel: string
+  minAqi: number | null
+  maxAqi: number | null
+  peakHour: string | null
+  status: { label: string; style: string }
+  color: string
+  barPct: number
+}
+
+function localDayKey(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function buildDaySummaries(points: ForecastPoint[]): DaySummary[] {
+  const groups = new Map<string, { date: Date; items: ForecastPoint[] }>()
+  for (const pt of points) {
+    const d = new Date(pt.timestamp)
+    if (Number.isNaN(d.getTime())) continue
+    const key = localDayKey(d)
+    const bucket = groups.get(key)
+    if (bucket) {
+      bucket.items.push(pt)
+    } else {
+      groups.set(key, { date: d, items: [pt] })
+    }
+  }
+
+  const today = new Date()
+  const todayKey = localDayKey(today)
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+  const tomorrowKey = localDayKey(tomorrow)
+
+  const ordered = Array.from(groups.entries()).slice(0, 3)
+  const overallMax = Math.max(
+    100,
+    ...ordered.flatMap(([, g]) =>
+      g.items.map((p) => p.aqi).filter((v): v is number => v != null),
+    ),
+  )
+
+  return ordered.map(([key, { date, items }]) => {
+    const valid = items.filter((p): p is ForecastPoint & { aqi: number } => p.aqi != null)
+    const minAqi = valid.length ? Math.min(...valid.map((p) => p.aqi)) : null
+    const maxAqi = valid.length ? Math.max(...valid.map((p) => p.aqi)) : null
+    const peakPoint = valid.length
+      ? valid.reduce((best, cur) => (cur.aqi > best.aqi ? cur : best))
+      : null
+
+    const dayLabel =
+      key === todayKey
+        ? 'Today'
+        : key === tomorrowKey
+          ? 'Tomorrow'
+          : date.toLocaleDateString([], { weekday: 'long' })
+
+    const dateLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    const status = category(maxAqi)
+    const color = AQI_TONE[status.style] ?? AQI_TONE.unknown
+    const barPct =
+      maxAqi != null ? Math.max(8, Math.min(100, Math.round((maxAqi / overallMax) * 100))) : 0
+
+    return {
+      key,
+      dayLabel,
+      dateLabel,
+      minAqi,
+      maxAqi,
+      peakHour: peakPoint ? formatHourShort(peakPoint.timestamp) : null,
+      status,
+      color,
+      barPct,
+    }
+  })
 }
 
 export default function ForecastHealthTab({
@@ -153,12 +264,10 @@ export default function ForecastHealthTab({
   userThreshold: number | null
   onOpenAlerts: () => void
 }) {
-  const [pollutant, setPollutant] = useState<ForecastPollutant>('aqi')
-  const [horizon, setHorizon] = useState<Horizon>('24h')
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
 
   const allPoints = insights?.forecast ?? []
   const next24Points = allPoints.slice(0, 24)
-  const visiblePoints = horizon === '24h' ? next24Points : allPoints.slice(0, 72)
 
   const bestWindow = findBestWindow(next24Points)
   const bestStatus = category(bestWindow?.avgAqi)
@@ -168,18 +277,38 @@ export default function ForecastHealthTab({
   const effectiveThreshold = userThreshold ?? profileConfig.recommendedThreshold
   const peakExceeds = peak24 != null && peak24.aqi > effectiveThreshold
 
-  const chartReadings: Reading[] = visiblePoints.map((pt, idx) => ({
-    id: idx + 1,
-    areaId: current?.area.id ?? 0,
-    aqi: pt.aqi,
-    pm25: pt.pm25,
-    pm10: pt.pm10,
-    source: 'Open-Meteo hourly forecast',
-    timestamp: pt.timestamp,
-  }))
+  const activeIdx =
+    hoveredIdx != null && hoveredIdx >= 0 && hoveredIdx < next24Points.length
+      ? hoveredIdx
+      : (peak24?.index ?? 0)
+  const activeSlot = next24Points[activeIdx] ?? null
+  const activeStatus = category(activeSlot?.aqi)
 
-  const pollutantLabel =
-    pollutant === 'aqi' ? 'US AQI' : pollutant === 'pm25' ? 'PM2.5' : 'PM10'
+  const maxHeatAqi = Math.max(
+    100,
+    effectiveThreshold,
+    ...next24Points.map((p) => p.aqi).filter((v): v is number => v != null),
+  )
+
+  const daySummaries = buildDaySummaries(allPoints.slice(0, 72))
+
+  function handleSlotKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      const next = Math.min(next24Points.length - 1, index + 1)
+      setHoveredIdx(next)
+      const parent = event.currentTarget.parentElement
+      const target = parent?.querySelectorAll<HTMLButtonElement>('.forecast-hour-slot')[next]
+      target?.focus()
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      const prev = Math.max(0, index - 1)
+      setHoveredIdx(prev)
+      const parent = event.currentTarget.parentElement
+      const target = parent?.querySelectorAll<HTMLButtonElement>('.forecast-hour-slot')[prev]
+      target?.focus()
+    }
+  }
 
   return (
     <div className="forecast-viewport">
@@ -207,7 +336,7 @@ export default function ForecastHealthTab({
           <div className="forecast-card-metric">
             <span className="forecast-card-sub">Lowest 2-hour average</span>
             <strong className="mono">
-              {bestWindow ? `${formatAqi(bestWindow.avgAqi)} US AQI` : '—'}
+              {bestWindow ? `${formatNumber(bestWindow.avgAqi)} US AQI` : '—'}
             </strong>
           </div>
         </article>
@@ -220,7 +349,7 @@ export default function ForecastHealthTab({
                 {loading && !insights
                   ? 'Loading…'
                   : peak24
-                    ? `${formatAqi(peak24.aqi)} US AQI`
+                    ? `${formatNumber(peak24.aqi)} US AQI`
                     : 'Unavailable'}
               </strong>
             </div>
@@ -282,57 +411,134 @@ export default function ForecastHealthTab({
         </article>
       </section>
 
-      <section className="card forecast-chart-card">
-        <div className="card-title-row forecast-chart-head">
+      <section className="card forecast-heatstrip-card" aria-label="24-hour AQI heat-strip">
+        <div className="forecast-heatstrip-head">
           <div>
-            <h3>{pollutantLabel} forecast</h3>
+            <h3>24-hour AQI heat-strip</h3>
             <p className="data-footnote">
-              {current?.area.name ?? 'Selected location'} ·{' '}
-              {horizon === '24h' ? 'Next 24 hours' : 'Next 72 hours'}
+              {current?.area.name ?? 'Selected location'} · Hover or focus any hour to inspect
             </p>
           </div>
 
-          <div className="forecast-chart-controls">
-            <SelectDropdown
-              value={pollutant}
-              onChange={(val) => setPollutant(val as ForecastPollutant)}
-              ariaLabel="Forecast pollutant"
-              icon="chart"
-              options={[
-                { value: 'aqi', label: 'US AQI' },
-                { value: 'pm25', label: 'PM2.5' },
-                { value: 'pm10', label: 'PM10' },
-              ]}
-            />
-            <div className="segmented" role="group" aria-label="Forecast horizon">
-              <button
-                type="button"
-                className={horizon === '24h' ? 'active' : ''}
-                aria-pressed={horizon === '24h'}
-                onClick={() => setHorizon('24h')}
-              >
-                Next 24h
-              </button>
-              <button
-                type="button"
-                className={horizon === '72h' ? 'active' : ''}
-                aria-pressed={horizon === '72h'}
-                onClick={() => setHorizon('72h')}
-              >
-                Next 72h
-              </button>
+          {activeSlot ? (
+            <div className="forecast-heatstrip-readout" aria-live="polite">
+              <span className="mono forecast-readout-time">{formatHourShort(activeSlot.timestamp)}</span>
+              <strong className="mono forecast-readout-aqi">
+                {formatNumber(activeSlot.aqi)} US AQI
+              </strong>
+              <span className="mono forecast-readout-pm">
+                PM2.5 {formatNumber(activeSlot.pm25, 1)} · PM10 {formatNumber(activeSlot.pm10, 1)} μg/m³
+              </span>
+              <span className={`status-pill ${activeStatus.style}`}>
+                <span className="status-dot" />
+                {activeStatus.label}
+              </span>
             </div>
-          </div>
+          ) : null}
         </div>
 
         {loading && !insights ? (
           <div className="empty-state">
             <Icon name="clock" size={16} />
-            <p>Loading hourly air quality forecast…</p>
+            <p>Loading hourly air quality heat-strip…</p>
+          </div>
+        ) : next24Points.length === 0 ? (
+          <div className="empty-state">
+            <Icon name="activity" size={16} />
+            <p>Hourly forecast unavailable for this location</p>
           </div>
         ) : (
-          <HistoryChart readings={chartReadings} pollutant={pollutant} />
+          <div
+            className="forecast-heatstrip-bars"
+            role="list"
+            aria-label="Next 24 hours AQI slots"
+            onMouseLeave={() => setHoveredIdx(null)}
+          >
+            {next24Points.map((pt, idx) => {
+              const slotStatus = category(pt.aqi)
+              const slotColor = AQI_TONE[slotStatus.style] ?? AQI_TONE.unknown
+              const heightPct =
+                pt.aqi != null
+                  ? Math.max(12, Math.min(100, Math.round((pt.aqi / maxHeatAqi) * 100)))
+                  : 10
+              const isBestHour =
+                bestWindow != null &&
+                idx >= bestWindow.startIndex &&
+                idx <= bestWindow.endIndex
+              const isAboveThreshold = pt.aqi != null && pt.aqi > effectiveThreshold
+              const isActive = idx === activeIdx
+              const showTick = idx % 3 === 0 || idx === next24Points.length - 1
+
+              return (
+                <button
+                  key={pt.timestamp}
+                  type="button"
+                  role="listitem"
+                  className={`forecast-hour-slot${isActive ? ' is-active' : ''}${isBestHour ? ' is-best-window' : ''}${isAboveThreshold ? ' is-above-threshold' : ''}`}
+                  aria-label={`${formatHourShort(pt.timestamp)}: ${formatNumber(pt.aqi)} US AQI, ${slotStatus.label}${isBestHour ? ', best outdoor window' : ''}${isAboveThreshold ? ', above threshold' : ''}`}
+                  onMouseEnter={() => setHoveredIdx(idx)}
+                  onFocus={() => setHoveredIdx(idx)}
+                  onKeyDown={(e) => handleSlotKeyDown(e, idx)}
+                >
+                  <span className="forecast-hour-markers" aria-hidden="true">
+                    {isAboveThreshold && <span className="forecast-hour-dot is-warn" />}
+                    {isBestHour && <span className="forecast-hour-dot is-best" />}
+                  </span>
+                  <span className="forecast-hour-bar-wrap" aria-hidden="true">
+                    <span
+                      className="forecast-hour-bar"
+                      style={{
+                        height: `${heightPct}%`,
+                        backgroundColor: slotColor,
+                      }}
+                    />
+                  </span>
+                  <span className="forecast-hour-label mono" aria-hidden={!showTick}>
+                    {showTick ? formatHourShort(pt.timestamp) : ''}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         )}
+      </section>
+
+      <section className="forecast-days-grid" aria-label="3-day forecast outlook">
+        {daySummaries.map((day) => (
+          <article key={day.key} className="card forecast-day-card">
+            <div className="forecast-day-head">
+              <div>
+                <strong className="forecast-day-name">{day.dayLabel}</strong>
+                <span className="forecast-day-date mono">{day.dateLabel}</span>
+              </div>
+              <span className={`status-pill ${day.status.style}`}>
+                <span className="status-dot" />
+                {day.status.label}
+              </span>
+            </div>
+
+            <div className="forecast-day-metrics">
+              <strong className="forecast-day-range mono">
+                {day.minAqi != null && day.maxAqi != null
+                  ? `${formatNumber(day.minAqi)} – ${formatNumber(day.maxAqi)} US AQI`
+                  : '—'}
+              </strong>
+              <span className="forecast-day-peak mono">
+                {day.peakHour ? `Peak ${day.peakHour}` : 'No peak'}
+              </span>
+            </div>
+
+            <div className="rankings-bar-track" aria-hidden="true">
+              <div
+                className="forecast-day-bar"
+                style={{
+                  width: `${day.barPct}%`,
+                  backgroundColor: day.color,
+                }}
+              />
+            </div>
+          </article>
+        ))}
       </section>
     </div>
   )

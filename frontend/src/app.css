@@ -1997,76 +1997,209 @@
   color: var(--text-secondary);
 }
 
-.forecast-chart-card {
+.forecast-heatstrip-card {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
   padding: 14px 18px;
   overflow: hidden;
 }
 
-.forecast-chart-head {
+.forecast-heatstrip-head {
   flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.forecast-chart-head .data-footnote {
-  margin-top: 2px;
-}
-
-.forecast-chart-controls {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.forecast-heatstrip-head h3 {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.forecast-heatstrip-readout {
+  display: inline-flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
-.forecast-chart-controls .custom-select {
-  width: 150px;
-  min-width: 132px;
+.forecast-readout-time {
+  color: var(--text-muted);
 }
 
-.forecast-chart-controls .custom-select-trigger {
-  min-height: 36px;
-  padding: 6px 12px;
+.forecast-readout-aqi {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.forecast-chart-card .empty-state {
-  flex: 1;
-  min-height: 0;
+.forecast-readout-pm {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
-.forecast-chart-card .chart-wrap {
+.forecast-heatstrip-bars {
   flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin-top: 8px;
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 6px;
+  align-items: end;
 }
 
-.forecast-chart-card .history-plot {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.forecast-chart-card .trend-chart {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
+.forecast-hour-slot {
   height: 100%;
-  max-height: 100%;
+  min-width: 0;
+  padding: 4px 2px 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease);
 }
 
-.forecast-chart-card .chart-caption,
-.forecast-chart-card .chart-interaction-hint {
+.forecast-hour-slot:hover,
+.forecast-hour-slot:focus-visible,
+.forecast-hour-slot.is-active {
+  background: var(--bg-raised);
+  border-color: var(--border-strong);
+  outline: none;
+}
+
+.forecast-hour-slot.is-best-window {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.forecast-hour-slot.is-above-threshold .forecast-hour-label {
+  color: var(--status-sensitive-fg);
+}
+
+.forecast-hour-markers {
+  height: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   flex-shrink: 0;
-  padding-top: 4px;
-  margin-top: 0;
+}
+
+.forecast-hour-bar-wrap {
+  flex: 1;
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.forecast-hour-bar {
+  width: 100%;
+  max-width: 18px;
+  min-height: 6px;
+  border-radius: 4px 4px 2px 2px;
+  transition: height 180ms var(--ease), opacity 150ms var(--ease);
+}
+
+.forecast-hour-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.forecast-hour-dot.is-best {
+  background: var(--accent);
+}
+
+.forecast-hour-dot.is-warn {
+  background: var(--status-sensitive-fg);
+}
+
+.forecast-hour-label {
+  font-size: 12px;
+  line-height: 1;
+  min-height: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.forecast-days-grid {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.forecast-day-card {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.forecast-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.forecast-day-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.forecast-day-date {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.forecast-day-metrics {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.forecast-day-range {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.forecast-day-peak {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.forecast-day-bar {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.admin-subtabs {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* Gases & weather tab */
@@ -2258,11 +2391,13 @@
 
 @media (max-width: 900px) {
   .forecast-top-grid,
+  .forecast-days-grid,
   .weather-section {
     grid-template-columns: 1fr;
   }
-  .forecast-chart-card .trend-chart {
-    height: 240px;
+  .forecast-heatstrip-bars {
+    min-height: 112px;
+    gap: 4px;
   }
 }
 
@@ -2271,8 +2406,8 @@
   .weather-grid {
     grid-template-columns: 1fr;
   }
-  .forecast-chart-controls,
-  .forecast-chart-controls .custom-select {
-    width: 100%;
+  .forecast-heatstrip-bars {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    row-gap: 8px;
   }
 }

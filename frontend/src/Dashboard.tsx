@@ -5,7 +5,7 @@ import ForecastHealthTab from './ForecastHealthTab'
 import GasesWeatherTab from './GasesWeatherTab'
 import LoginPage, { DisabledAccountView } from './LoginPage'
 import MyLocations from './MyLocations'
-import AdminPanel, { type AdminSection } from './AdminPanel'
+import AdminPanel from './AdminPanel'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type FormEvent } from 'react'
 import { Icon, navGroups, navItems, type Page } from './App'
 import {
@@ -242,9 +242,9 @@ export default function DashboardApp() {
   useEffect(() => {
     if (authLoading) return
     if (firebaseMode) {
-      if (page === 'admin') setPage(isAdmin ? 'admin-overview' : 'dashboard')
-      else if (page.startsWith('admin-') && !isAdmin) setPage('dashboard')
-    } else if (page.startsWith('admin-')) {
+      if (page === 'admin') setPage(isAdmin ? 'admin-console' : 'dashboard')
+      else if (page === 'admin-console' && !isAdmin) setPage('dashboard')
+    } else if (page === 'admin-console') {
       setPage('admin')
     }
   }, [authLoading, firebaseMode, isAdmin, page])
@@ -649,11 +649,7 @@ export default function DashboardApp() {
     'add-location': { title: 'My locations', subtitle: 'Manage your watchlist, set a default city, or search worldwide' },
     alerts: { title: 'Smog alerts', subtitle: 'Configure US AQI thresholds, acknowledge active alerts, and review episodes' },
     admin: { title: 'Administration', subtitle: 'Maintain monitoring locations and shared alert rules' },
-    'admin-overview': { title: 'Admin overview', subtitle: 'Network metrics, popular monitored cities, and recent threshold emails' },
-    'admin-catalog': { title: 'Global catalog', subtitle: 'Add, edit, or toggle global monitoring locations and starter defaults' },
-    'admin-users': { title: 'Users & roles', subtitle: 'Manage Google-authenticated accounts, admin roles, and account status' },
-    'admin-advisories': { title: 'Advisories & rules', subtitle: 'Publish network-wide advisories and official threshold alert rules' },
-    'admin-health': { title: 'Network health', subtitle: 'Inspect Open-Meteo sync health, stale stations, and Resend delivery logs' },
+    'admin-console': { title: 'Admin', subtitle: 'Manage global cities, user roles, advisories, official rules, and network health' },
   }[page]
 
   const mapAreas = globalAreas.length ? globalAreas : userAreas
@@ -693,7 +689,7 @@ export default function DashboardApp() {
   }
 
   return <div className={`app-shell${menu ? ' sidebar-open' : ''}`}>
-    <aside id="app-sidebar" className={`sidebar${menu ? ' open' : ''}${firebaseMode && isAdmin ? ' is-admin' : ''}`} inert={!menu}>
+    <aside id="app-sidebar" className={`sidebar${menu ? ' open' : ''}`} inert={!menu}>
       <div className="brand">
         <div className="brand-mark"><img src="/app-icon.svg?v=3" alt="Smog Monitor" className="brand-icon-img" /></div>
         <div>
@@ -914,7 +910,7 @@ export default function DashboardApp() {
                 <button className="btn primary" disabled={busy}>Add sample reading</button>
               </form>
             </Card>}
-            <SmogOverview current={current} areas={areas} alerts={alerts} preferences={preferences} history={history} historyLoading={historyLoading} mode={mode} navigate={navigate} />
+            <SmogOverview current={current} areas={areas} alerts={alerts} preferences={preferences} history={history} historyLoading={historyLoading} mode={mode} threshold={userThreshold} navigate={navigate} />
           </>}
           {page === 'forecast' && (
             <ForecastHealthTab
@@ -928,9 +924,9 @@ export default function DashboardApp() {
               onOpenAlerts={() => navigate('alerts')}
             />
           )}
-          {page === 'usaqi' && <PollutantTab pollutant="aqi" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
-          {page === 'pm25' && <PollutantTab pollutant="pm25" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
-          {page === 'pm10' && <PollutantTab pollutant="pm10" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
+          {page === 'usaqi' && <PollutantTab pollutant="aqi" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} threshold={userThreshold} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
+          {page === 'pm25' && <PollutantTab pollutant="pm25" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} threshold={userThreshold} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
+          {page === 'pm10' && <PollutantTab pollutant="pm10" current={current} areas={areas} history={history} historyLoading={historyLoading} hours={hours} threshold={userThreshold} onHoursChange={setHours} onExport={exportHistory} onSelectArea={id => setSelected(id)} />}
           {page === 'gases' && (
             <GasesWeatherTab
               current={current}
@@ -1238,9 +1234,8 @@ export default function DashboardApp() {
             {showForm && <Card className="location-form"><h3>{editing?.id ? 'Edit monitoring location' : 'Add monitoring location'}</h3><form key={editing ? `${editing.id}-${editing.latitude}-${editing.longitude}` : 'new'} onSubmit={(e: FormEvent<HTMLFormElement>) => { e.preventDefault(); const f = new FormData(e.currentTarget); void action(async () => { await api(editing?.id ? `/admin/areas/${editing.id}` : '/admin/areas', editing?.id ? 'PUT' : 'POST', { name: f.get('name'), latitude: Number(f.get('latitude')), longitude: Number(f.get('longitude')), active: f.get('active') === 'on' }, token); setShowForm(false) }, 'Location saved. Refresh data to load its readings') }}><div className="field"><span>Location name</span>{editing?.customLocation ? <input name="name" required maxLength={80} defaultValue={editing.name} /> : <SelectDropdown name="name" ariaLabel="Location name" defaultValue={editing?.name.split(',')[0]} options={['Karachi', 'Lahore', 'Islamabad', 'Peshawar', 'Quetta'].filter(city => editing ? editing.name.split(',')[0] === city : !defaultAreas.some(item => item.area.name.split(',')[0] === city)).map(city => ({ value: city, label: city }))} />}</div><Field label="Latitude (−90 to 90)"><input name="latitude" type="number" step="any" min="-90" max="90" required defaultValue={editing?.latitude} /></Field><Field label="Longitude (−180 to 180)"><input name="longitude" type="number" step="any" min="-180" max="180" required defaultValue={editing?.longitude} /></Field><label className="checkbox-label"><input name="active" type="checkbox" defaultChecked={editing?.active ?? true} />Monitoring enabled</label><button className="btn primary" disabled={busy || !token}>Save location</button></form></Card>}
             <Card className="management-card"><div className="card-title-row"><div><h3>Monitored locations</h3><p className="card-subtitle">Monitoring coverage</p></div><span className="muted mono">{areas.length} locations</span></div>{areas.map(a => <div className="management-item" key={a.area.id}><Icon name="pin" size={16} /><div className="management-name"><strong>{a.area.name}</strong><span className="mono">{a.area.latitude}, {a.area.longitude} · {a.area.active ? 'Enabled' : 'Paused'}</span><span>{a.area.lastError || (a.stale ? 'Stale or unavailable data' : 'Recent estimate available')}</span></div><button className="btn secondary" onClick={() => { setEditing(a.area); setShowForm(true) }}>Edit</button><button className="icon-button danger" disabled={busy || !token} aria-label={`Remove ${a.area.name}`} onClick={() => { if (window.confirm(`Remove ${a.area.name} from monitoring? Its saved readings and rules are retained.`)) void action(() => api(`/admin/areas/${a.area.id}`, 'DELETE', undefined, token), 'Location removed from monitoring') }}><Icon name="trash" size={16} /></button></div>)}{!areas.length && <Empty>Add your first monitoring location</Empty>}</Card><AdminRules areas={areas} preferences={preferences} token={token} busy={busy} run={action} />
           </>}
-          {firebaseMode && isAdmin && page.startsWith('admin-') && (
+          {firebaseMode && isAdmin && page === 'admin-console' && (
             <AdminPanel
-              section={page as AdminSection}
               getIdToken={getIdToken}
               onDataChanged={load}
             />

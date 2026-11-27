@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { category } from './api'
 import { Icon } from './App'
 import SelectDropdown from './SelectDropdown'
@@ -9,6 +9,14 @@ export type AdminSection =
   | 'admin-users'
   | 'admin-advisories'
   | 'admin-health'
+
+const ADMIN_SUBTABS: { id: AdminSection; label: string }[] = [
+  { id: 'admin-overview', label: 'Overview' },
+  { id: 'admin-catalog', label: 'Catalog' },
+  { id: 'admin-users', label: 'Users' },
+  { id: 'admin-advisories', label: 'Advisories' },
+  { id: 'admin-health', label: 'Health' },
+]
 
 interface AdminCity {
   id: string
@@ -103,14 +111,41 @@ function escapeCsvCell(value: unknown): string {
 }
 
 export default function AdminPanel({
-  section,
+  section = 'admin-overview',
   getIdToken,
   onDataChanged,
 }: {
-  section: AdminSection
+  section?: AdminSection
   getIdToken: () => Promise<string | null>
   onDataChanged: () => Promise<void>
 }) {
+  const [activeSection, setActiveSection] = useState<AdminSection>(section)
+  const subtabsRef = useRef<HTMLDivElement>(null)
+  const subtabButtonRefs = useRef<Partial<Record<AdminSection, HTMLButtonElement | null>>>({})
+  const [subtabGlide, setSubtabGlide] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+
+  useEffect(() => {
+    setActiveSection(section)
+  }, [section])
+
+  useLayoutEffect(() => {
+    const update = () => {
+      const btn = subtabButtonRefs.current[activeSection]
+      if (!btn) return
+      setSubtabGlide({ left: btn.offsetLeft, width: btn.offsetWidth })
+    }
+    update()
+
+    const container = subtabsRef.current
+    if (!container || typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+    const observer = new ResizeObserver(update)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [activeSection])
+
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -165,20 +200,20 @@ export default function AdminPanel({
     setLoading(true)
     setError('')
     try {
-      if (section === 'admin-overview' || section === 'admin-health') {
+      if (activeSection === 'admin-overview' || activeSection === 'admin-health') {
         const [analyticsRes, citiesRes] = await Promise.all([
           authedFetch<AnalyticsPayload>('/api/admin/analytics'),
           authedFetch<AdminCity[] | { cities?: AdminCity[] }>('/api/admin/cities'),
         ])
         setAnalytics(analyticsRes)
         setCities(Array.isArray(citiesRes) ? citiesRes : citiesRes.cities ?? [])
-      } else if (section === 'admin-catalog') {
+      } else if (activeSection === 'admin-catalog') {
         const citiesRes = await authedFetch<AdminCity[] | { cities?: AdminCity[] }>('/api/admin/cities')
         setCities(Array.isArray(citiesRes) ? citiesRes : citiesRes.cities ?? [])
-      } else if (section === 'admin-users') {
+      } else if (activeSection === 'admin-users') {
         const usersRes = await authedFetch<AdminUser[] | { users?: AdminUser[] }>('/api/admin/users')
         setUsers(Array.isArray(usersRes) ? usersRes : usersRes.users ?? [])
-      } else if (section === 'admin-advisories') {
+      } else if (activeSection === 'admin-advisories') {
         const [advRes, citiesRes] = await Promise.all([
           authedFetch<{ advisories?: AdminAdvisory[]; rules?: AdminRule[] }>('/api/admin/advisories'),
           authedFetch<AdminCity[] | { cities?: AdminCity[] }>('/api/admin/cities'),
@@ -194,7 +229,7 @@ export default function AdminPanel({
     } finally {
       setLoading(false)
     }
-  }, [authedFetch, ruleCityId, section])
+  }, [authedFetch, ruleCityId, activeSection])
 
   useEffect(() => {
     setNotice('')
@@ -364,6 +399,39 @@ export default function AdminPanel({
 
   return (
     <div className="admin-panel">
+      <div
+        ref={subtabsRef}
+        className="segmented admin-subtabs"
+        role="tablist"
+        aria-label="Administrator console sections"
+      >
+        {subtabGlide.width > 0 && (
+          <span
+            className="segmented-glide-indicator"
+            aria-hidden="true"
+            style={{
+              transform: `translateX(${subtabGlide.left}px)`,
+              width: `${subtabGlide.width}px`,
+            }}
+          />
+        )}
+        {ADMIN_SUBTABS.map((tab) => (
+          <button
+            key={tab.id}
+            ref={(el) => {
+              subtabButtonRefs.current[tab.id] = el
+            }}
+            type="button"
+            role="tab"
+            aria-selected={activeSection === tab.id}
+            className={activeSection === tab.id ? 'active' : ''}
+            onClick={() => setActiveSection(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {error && (
         <div className="notice error-notice" role="alert">
           <Icon name="warning" size={16} />
@@ -386,7 +454,7 @@ export default function AdminPanel({
         </div>
       ) : null}
 
-      {section === 'admin-overview' && analytics && (
+      {activeSection === 'admin-overview' && analytics && (
         <div className="admin-panel-section">
           <div className="card admin-panel-card">
             <div className="card-title-row">
@@ -506,7 +574,7 @@ export default function AdminPanel({
         </div>
       )}
 
-      {section === 'admin-catalog' && (
+      {activeSection === 'admin-catalog' && (
         <div className="admin-panel-section">
           <section className="card admin-panel-card">
             <div className="card-title-row">
@@ -686,7 +754,7 @@ export default function AdminPanel({
         </div>
       )}
 
-      {section === 'admin-users' && (
+      {activeSection === 'admin-users' && (
         <div className="admin-panel-section">
           <section className="card admin-panel-card">
             <div className="card-title-row">
@@ -802,7 +870,7 @@ export default function AdminPanel({
         </div>
       )}
 
-      {section === 'admin-advisories' && (
+      {activeSection === 'admin-advisories' && (
         <div className="admin-panel-section admin-two-col">
           <section className="card admin-panel-card">
             <div className="card-title-row">
@@ -1005,7 +1073,7 @@ export default function AdminPanel({
         </div>
       )}
 
-      {section === 'admin-health' && (
+      {activeSection === 'admin-health' && (
         <div className="admin-panel-section">
           <section className="card admin-panel-card">
             <div className="card-title-row">

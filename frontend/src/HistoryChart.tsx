@@ -16,7 +16,15 @@ const axisTextStyle = {
   fill: 'var(--text-muted, #85858b)',
 } as const
 
-export default function HistoryChart({ readings, pollutant }: { readings: Reading[]; pollutant: Indicator }) {
+export default function HistoryChart({
+  readings,
+  pollutant,
+  threshold,
+}: {
+  readings: Reading[]
+  pollutant: Indicator
+  threshold?: number | null
+}) {
   const [activeId, setActiveId] = useState<number | null>(null)
   const tooltipId = useId()
   const valid = readings.filter(r => r[pollutant] != null)
@@ -31,7 +39,9 @@ export default function HistoryChart({ readings, pollutant }: { readings: Readin
   const label = pollutant === 'aqi' ? 'US AQI' : pollutant === 'pm25' ? 'PM2.5' : 'PM10'
   const unit = pollutant === 'aqi' ? 'index' : 'μg/m³'
   const colour = palette[pollutant]
-  const max = Math.max(50, ...valid.map(r => r[pollutant]!)) * 1.15
+  const activeThreshold = pollutant === 'aqi' && threshold != null && threshold > 0 ? threshold : null
+  const max = Math.max(50, activeThreshold ?? 0, ...valid.map(r => r[pollutant]!)) * 1.15
+  const yThreshold = activeThreshold != null ? 230 - activeThreshold / max * 200 : null
   const start = Date.parse(readings[0].timestamp)
   const duration = Math.max(1, Date.parse(readings[readings.length - 1].timestamp) - start)
   const x = (r: Reading) => 55 + (Date.parse(r.timestamp) - start) / duration * 660
@@ -149,6 +159,30 @@ export default function HistoryChart({ readings, pollutant }: { readings: Readin
           {valid.length <= 48 && valid.map(r => (
             <circle key={r.id} cx={x(r)} cy={y(r)} r="2.5" fill={colour} />
           ))}
+          {yThreshold != null && activeThreshold != null && (
+            <g pointerEvents="none">
+              <line
+                x1="55"
+                x2="715"
+                y1={yThreshold}
+                y2={yThreshold}
+                stroke="var(--status-unhealthy-text, #f87171)"
+                strokeWidth="1.25"
+                strokeDasharray="4 4"
+                opacity="0.75"
+              />
+              <text
+                x="712"
+                y={Math.max(24, yThreshold - 6)}
+                textAnchor="end"
+                fontSize="12px"
+                className="mono"
+                fill="var(--status-unhealthy-text, #f87171)"
+              >
+                Threshold · {Math.round(activeThreshold)}
+              </text>
+            </g>
+          )}
           {active && (
             <g pointerEvents="none">
               <line
